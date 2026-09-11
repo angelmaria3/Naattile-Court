@@ -14,9 +14,12 @@ export default function CreateCase() {
     e.preventDefault()
     setLoading(true)
 
+    // Generate a random token to identify this browser as the plaintiff
+    const creatorToken = crypto.randomUUID()
+
     const { data, error } = await supabase
       .from('cases')
-      .insert({ plaintiff, category, complaint })
+      .insert({ plaintiff, category, complaint, creator_token: creatorToken })
       .select()
       .single()
 
@@ -26,6 +29,10 @@ export default function CreateCase() {
       alert('Error creating case: ' + error.message)
       return
     }
+
+    // Save the token locally, keyed to this case's code, so this browser
+    // can later prove it's the plaintiff when it opens the courtroom
+    localStorage.setItem(`case_${data.case_code}_token`, creatorToken)
 
     setCaseCode(data.case_code)
   }
