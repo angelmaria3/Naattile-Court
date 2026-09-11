@@ -1,0 +1,21 @@
+{
+  "name": "naattile-court",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/angelmaria3/Naattile-Court.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/angelmaria3/Naattile-Court/issues"
+  },
+  "homepage": "https://github.com/angelmaria3/Naattile-Court#readme"
+}
