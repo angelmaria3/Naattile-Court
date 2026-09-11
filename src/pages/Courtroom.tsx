@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+
 import './courtroom.css'
 
 const AVATAR_COLORS = ['#8B5A2B', '#3D6B54', '#8B2222', '#4A5A8B', '#8B6A2B']
-
+const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
 const WITNESS_PERSONAS = [
   {
     name: 'Ammachi',
@@ -134,14 +135,41 @@ export default function Courtroom() {
     setNotGuiltyVotes((data ?? []).filter(v => v.vote === 'not_guilty').length)
   }
 
-  const handleAddEvidence = async () => {
-    if (!evidenceText.trim()) return
-    setSavingEvidence(true)
-    await supabase.from('evidence').insert({ case_id: caseData.id, description: evidenceText.trim() })
-    setEvidenceText('')
-    await loadEvidence(caseData.id)
-    setSavingEvidence(false)
+ const handleAddEvidence = async () => {
+  if (!evidenceText.trim() && !evidenceFile) return
+  setSavingEvidence(true)
+
+  let fileUrl: string | null = null
+
+  if (evidenceFile) {
+    const filePath = `${caseData.id}/${Date.now()}-${evidenceFile.name}`
+    const { error: uploadError } = await supabase.storage
+      .from('evidence-files')
+      .upload(filePath, evidenceFile)
+
+    if (uploadError) {
+      alert('File upload failed: ' + uploadError.message)
+      setSavingEvidence(false)
+      return
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('evidence-files')
+      .getPublicUrl(filePath)
+    fileUrl = urlData.publicUrl
   }
+
+  await supabase.from('evidence').insert({
+    case_id: caseData.id,
+    description: evidenceText.trim() || null,
+    file_url: fileUrl,
+  })
+
+  setEvidenceText('')
+  setEvidenceFile(null)
+  await loadEvidence(caseData.id)
+  setSavingEvidence(false)
+}
 
   const handleSummon = async (persona: typeof WITNESS_PERSONAS[number]) => {
     setSummoning(persona.name)
@@ -256,11 +284,23 @@ export default function Courtroom() {
               {evidenceList.length === 0 && <p className="nc-empty-note">No evidence entered into the record yet.</p>}
               <div className="nc-evidence-grid">
                 {evidenceList.map(e => (
-                  <div className="nc-evidence-tile" key={e.id}>{e.description}</div>
-                ))}
+  <div className="nc-evidence-tile" key={e.id}>
+    {e.file_url && (
+      <img src={e.file_url} alt="evidence" style={{ maxWidth: '100%', borderRadius: 6, marginBottom: 6 }} />
+    )}
+    {e.description}
+  </div>
+))}
               </div>
               {isPlaintiff && (
                 <>
+                <input
+  type="file"
+  accept="image/*"
+  onChange={e => setEvidenceFile(e.target.files?.[0] ?? null)}
+  className="nc-textarea"
+  style={{ marginBottom: 8 }}
+/>
                   <textarea
                     className="nc-textarea"
                     placeholder="Describe a piece of evidence..."

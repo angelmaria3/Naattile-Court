@@ -1,30 +1,57 @@
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { supabase } from './supabase';
+
+function generateCaseCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 export async function fileCase({ complainantName, defendantName, caseTitle }) {
-  const res = await fetch(`${BASE_URL}/cases`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ complainantName, defendantName, caseTitle }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-  return data;
+  const creatorToken = crypto.randomUUID();
+  const caseCode = generateCaseCode();
+
+  const { data, error } = await supabase
+    .from('cases')
+    .insert({
+      case_code: caseCode,
+      plaintiff: complainantName,
+      defendant: defendantName,
+      complaint: caseTitle,
+      status: 'pending',
+      creator_token: creatorToken,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  // Remember this browser as the plaintiff for this case
+  localStorage.setItem(`case_${data.case_code}_token`, creatorToken);
+
+  return {
+    code: data.case_code,
+    defendant_name: data.defendant,
+    ...data,
+  };
 }
 
 export async function getCaseByCode(code) {
-  const res = await fetch(`${BASE_URL}/cases/${code}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Case not found.');
-  return data;
+  const { data, error } = await supabase
+    .from('cases')
+    .select('*')
+    .eq('case_code', code)
+    .single();
+
+  if (error) throw new Error('Case not found.');
+  return { code: data.case_code, defendant_name: data.defendant, ...data };
 }
 
 export async function joinCase({ code, defendantJoinedName }) {
-  const res = await fetch(`${BASE_URL}/cases/${code}/join`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ defendantJoinedName }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-  return data;
+  const { data, error } = await supabase
+    .from('cases')
+    .update({ status: 'joined' })
+    .eq('case_code', code)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { code: data.case_code, defendant_name: data.defendant, ...data };
 }
