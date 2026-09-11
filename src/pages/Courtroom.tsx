@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import './courtroom.css'
 
 const AVATAR_COLORS = ['#8B5A2B', '#3D6B54', '#8B2222', '#4A5A8B', '#8B6A2B']
-const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
+
 const WITNESS_PERSONAS = [
   {
     name: 'Ammachi',
@@ -84,8 +84,9 @@ export default function Courtroom() {
   const [notFound, setNotFound] = useState(false)
   const [isPlaintiff, setIsPlaintiff] = useState(false)
 
-  const [evidenceText, setEvidenceText] = useState('')
-  const [savingEvidence, setSavingEvidence] = useState(false)
+ const [evidenceText, setEvidenceText] = useState('')
+const [savingEvidence, setSavingEvidence] = useState(false)
+const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
   const [summoning, setSummoning] = useState<string | null>(null)
 
   const [guiltyVotes, setGuiltyVotes] = useState(0)
