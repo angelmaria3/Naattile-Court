@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Noto Sans Malayalam', 'Poppins', sans-serif;
+    background-color: #2b1a10;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Cinzel', 'Noto Serif Malayalam', serif;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #2b1a10;
+}
+::-webkit-scrollbar-thumb {
+  background: #6b4423;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c99a3d;
+}
