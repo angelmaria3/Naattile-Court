@@ -1,421 +1,153 @@
-:root {
-  --wood-dark: #241a12;
-  --wood-mid: #3d2a1c;
-  --wood-panel: #4a3223;
-  --brass: #b8905a;
-  --brass-light: #d4af6a;
-  --parchment: #efe6d0;
-  --parchment-shadow: #d9cba8;
-  --ink: #241a12;
-  --ink-soft: #5a4a38;
-  --stamp-red: #8b2222;
-  --stamp-green: #35573a;
+/* ========================================================= */
+/* SINGLE-SCREEN COURTROOM DASHBOARD STYLING                 */
+/* ========================================================= */
+
+.courtroom-viewport {
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: #382012;
+  box-sizing: border-box;
+  user-select: none;
+  color: #fff9ed;
 }
 
-* { box-sizing: border-box; }
-
-.nc-page {
-  min-height: 100vh;
-  background: radial-gradient(ellipse at top, #3d2a1c 0%, #241a12 65%);
-  font-family: 'Courier Prime', 'Courier New', monospace;
-  color: var(--parchment);
-  padding-bottom: 60px;
-}
-
-.nc-shell { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
-
-/* ---------- Nav ---------- */
-.nc-nav {
+.courtroom-header {
+  height: 48px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(184,144,90,0.25);
-  margin-bottom: 24px;
+  padding: 0 16px;
+  background: rgba(54, 32, 17, 0.95);
+  border-bottom: 2px solid #d4af5c;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 20;
 }
 
-.nc-nav-logo {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--brass-light);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.nc-nav-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-
-.nc-nav-tab {
-  font-size: 13px;
-  padding: 7px 14px;
-  border-radius: 6px;
-  color: var(--parchment);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: default;
-}
-
-.nc-nav-tab.active {
-  background: var(--brass);
-  color: var(--wood-dark);
-  font-weight: 700;
-}
-
-.nc-case-badge {
-  font-size: 12px;
-  border: 1px solid var(--brass);
-  border-radius: 8px;
-  padding: 6px 14px;
-  line-height: 1.4;
-}
-
-.nc-case-badge b { color: var(--brass-light); }
-
-/* ---------- Hero ---------- */
-.nc-hero {
-  background: linear-gradient(180deg, var(--wood-panel), var(--wood-mid));
-  border: 1px solid rgba(184,144,90,0.4);
-  border-radius: 14px;
-  padding: 40px 24px;
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.nc-hero-title {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 34px;
-  margin: 0 0 6px;
-  color: var(--brass-light);
-}
-
-.nc-hero-sub {
-  font-size: 13px;
-  color: var(--parchment);
-  opacity: 0.8;
-  margin: 0;
-}
-
-/* ---------- Grids ---------- */
-.nc-grid-3 {
-  display: grid;
-  grid-template-columns: 260px 1fr 260px;
-  gap: 18px;
-  margin-bottom: 18px;
-  align-items: start;
-}
-
-.nc-grid-3b {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 18px;
-  margin-bottom: 18px;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .nc-grid-3, .nc-grid-3b { grid-template-columns: 1fr; }
-}
-
-/* ---------- Panels (shared parchment look) ---------- */
-.nc-panel {
-  background: var(--parchment);
-  color: var(--ink);
-  border-radius: 10px;
-  padding: 18px 20px;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-}
-
-.nc-panel h2, .nc-panel h3 {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 16px;
-  margin: 0 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ---------- Party cards ---------- */
-.nc-party-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
-  font-size: 18px;
-  color: #fff;
-  margin-bottom: 10px;
-}
-
-.nc-party-name { font-weight: 700; margin: 0 0 4px; }
-
-.nc-party-quote {
-  font-size: 13px;
-  font-style: italic;
-  color: var(--ink-soft);
-  border-left: 3px solid var(--brass);
-  padding-left: 10px;
-  margin: 8px 0 12px;
-}
-
-.nc-party-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.7;
-}
-
-.nc-party-list li::before { content: "•  "; color: var(--brass); }
-
-.nc-empty-note {
-  font-size: 12.5px;
-  color: var(--ink-soft);
-  font-style: italic;
-}
-
-/* ---------- Proceedings feed ---------- */
-.nc-proceedings { max-height: 260px; overflow-y: auto; margin-bottom: 6px; }
-
-.nc-proceedings-item {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--parchment-shadow);
-  font-size: 13px;
-}
-
-.nc-proceedings-item:last-child { border-bottom: none; }
-
-.nc-proceedings-speaker {
-  font-weight: 700;
-  margin-right: 6px;
-}
-
-.nc-proceedings-time {
-  float: right;
-  font-size: 11px;
-  color: var(--ink-soft);
-}
-
-/* ---------- Evidence gallery ---------- */
-.nc-evidence-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.nc-evidence-tile {
-  background: #fbf7ec;
-  border: 1px solid var(--parchment-shadow);
-  border-radius: 6px;
-  padding: 10px;
-  font-size: 12px;
-  min-height: 60px;
-}
-
-.nc-panel-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.nc-textarea, .nc-input {
-  width: 100%;
-  font-family: 'Courier Prime', 'Courier New', monospace;
-  font-size: 13px;
-  padding: 8px 10px;
-  border: 1px solid var(--parchment-shadow);
-  border-radius: 5px;
-  background: #fbf7ec;
-  color: var(--ink);
-  margin-bottom: 8px;
-}
-
-.nc-btn {
-  font-family: 'Courier Prime', monospace;
-  font-size: 12.5px;
-  padding: 7px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--wood-dark);
-  background: var(--wood-dark);
-  color: var(--parchment);
-  cursor: pointer;
-}
-
-.nc-btn:hover { background: var(--wood-mid); }
-.nc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.nc-btn-small {
-  font-size: 11.5px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  border: 1px solid var(--wood-dark);
-  background: transparent;
-  color: var(--wood-dark);
-  cursor: pointer;
-}
-
-/* ---------- Witnesses ---------- */
-.nc-witness-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--parchment-shadow);
-}
-
-.nc-witness-row:last-child { border-bottom: none; }
-
-.nc-witness-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--brass); color: var(--wood-dark);
-  font-weight: 700; font-size: 13px; flex-shrink: 0;
-}
-
-.nc-witness-info { flex: 1; }
-.nc-witness-name { font-weight: 700; font-size: 13px; }
-.nc-witness-tagline { font-size: 11.5px; color: var(--ink-soft); }
-
-/* ---------- Jury ---------- */
-.nc-jury-avatars {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-
-.nc-juror { text-align: center; width: 62px; }
-
-.nc-juror-circle {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: var(--brass); color: var(--wood-dark);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; margin: 0 auto 4px;
-  font-size: 13px;
-}
-
-.nc-juror-circle.awaiting { background: var(--parchment-shadow); color: var(--ink-soft); }
-
-.nc-juror-tag {
-  font-size: 9.5px;
-  padding: 2px 6px;
-  border-radius: 8px;
-  display: inline-block;
-  margin-top: 2px;
-}
-
-.nc-juror-tag.voted { background: var(--stamp-green); color: #fff; }
-.nc-juror-tag.awaiting { background: var(--parchment-shadow); color: var(--ink-soft); }
-
-.nc-vote-row { display: flex; gap: 10px; margin-top: 6px; }
-
-.nc-vote-btn {
+.courtroom-arena {
   flex: 1;
-  padding: 12px 8px;
-  border-radius: 6px;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 2px solid transparent;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch;
+  gap: 12px;
+  padding: 10px 14px;
+  overflow: hidden !important;
+  box-sizing: border-box;
+  width: 100%;
 }
 
-.nc-vote-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.nc-vote-guilty { background: rgba(139,34,34,0.1); border-color: var(--stamp-red); color: var(--stamp-red); }
-.nc-vote-notguilty { background: rgba(53,87,58,0.1); border-color: var(--stamp-green); color: var(--stamp-green); }
-
-/* ---------- Laws sidebar ---------- */
-.nc-law-item {
-  border-left: 3px solid var(--brass);
-  padding: 8px 0 8px 10px;
-  margin-bottom: 10px;
-  font-size: 12px;
-}
-
-.nc-law-section { font-weight: 700; display: block; margin-bottom: 2px; }
-.nc-law-punishment { color: var(--ink-soft); }
-
-/* ---------- Deliver + verdict ---------- */
-.nc-deliver-wrap { text-align: center; margin: 10px 0 28px; }
-
-.nc-gavel-btn {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 17px;
-  font-weight: 700;
-  padding: 14px 34px;
+.courtroom-box-left {
+  width: 28% !important;
+  flex: 0 0 28% !important;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(85, 52, 26, 0.94);
+  border: 2px solid #b8863b;
   border-radius: 8px;
-  background: var(--brass);
-  color: var(--wood-dark);
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 8px 20px rgba(184,144,90,0.35);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 230, 160, 0.25);
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.nc-gavel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-@keyframes nc-stamp-in {
-  0% { opacity: 0; transform: scale(1.1) rotate(-3deg); }
-  100% { opacity: 1; transform: scale(1) rotate(-1deg); }
-}
-
-.nc-verdict-strip {
-  background: var(--parchment);
-  color: var(--ink);
-  border-radius: 10px;
-  padding: 28px;
-  animation: nc-stamp-in 0.45s ease-out;
-}
-
-.nc-verdict-strip.is-guilty { border: 3px solid var(--stamp-red); }
-.nc-verdict-strip.is-notguilty { border: 3px solid var(--stamp-green); }
-
-.nc-verdict-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-
-@media (max-width: 700px) {
-  .nc-verdict-cols { grid-template-columns: 1fr; }
-}
-
-.nc-verdict-label { font-size: 12px; color: var(--ink-soft); margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
-
-.nc-verdict-stamp {
-  display: inline-block;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 28px;
-  font-weight: 700;
-  padding: 8px 22px;
-  border: 4px solid var(--stamp-red);
-  color: var(--stamp-red);
+.courtroom-box-center {
+  width: 44% !important;
+  flex: 1 1 44% !important;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(94, 58, 30, 0.96);
+  border: 2px solid #e0b95c;
   border-radius: 8px;
-  transform: rotate(-4deg);
-  margin-bottom: 8px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.6), 0 0 25px rgba(224, 185, 92, 0.3), inset 0 1px 0 rgba(255, 240, 180, 0.35);
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.nc-verdict-stamp.is-notguilty { border-color: var(--stamp-green); color: var(--stamp-green); }
-
-.nc-verdict-strip .nc-reasoning { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
-
-.nc-punishment-text {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 17px;
-  margin: 0 0 8px;
+.courtroom-box-right {
+  width: 28% !important;
+  flex: 0 0 28% !important;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(85, 52, 26, 0.94);
+  border: 2px solid #b8863b;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 230, 160, 0.25);
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.nc-verdict-quote {
-  text-align: center;
-  font-style: italic;
-  font-size: 13px;
-  color: var(--ink-soft);
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px dashed var(--parchment-shadow);
+/* Brass Rivets with Bright Glow */
+.rivet-tl { position: absolute; top: 4px; left: 4px; width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, #ffe58f, #c6922a); box-shadow: 0 0 4px rgba(255, 225, 120, 0.7); }
+.rivet-tr { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, #ffe58f, #c6922a); box-shadow: 0 0 4px rgba(255, 225, 120, 0.7); }
+.rivet-bl { position: absolute; bottom: 4px; left: 4px; width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, #ffe58f, #c6922a); box-shadow: 0 0 4px rgba(255, 225, 120, 0.7); }
+.rivet-br { position: absolute; bottom: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, #ffe58f, #c6922a); box-shadow: 0 0 4px rgba(255, 225, 120, 0.7); }
+
+/* Scrollbars */
+.custom-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(224, 185, 92, 0.65);
+  border-radius: 3px;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(224, 185, 92, 0.95);
+}
+
+/* 2-Second Center Verdict Splash Animation */
+@keyframes verdictStampIn {
+  0% {
+    opacity: 0;
+    transform: scale(2.2) rotate(-4deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.96) rotate(1deg);
+  }
+  80% {
+    transform: scale(1.02) rotate(-0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.verdict-stamp-animation {
+  animation: verdictStampIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes verdictCountdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.verdict-countdown-bar {
+  animation: verdictCountdown 2s linear forwards;
 }

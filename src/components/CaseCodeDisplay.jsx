@@ -46,17 +46,24 @@ export default function CaseCodeDisplay({ code, defendantName, onEnterCourtroom 
             </p>
           )}
 
-          <p className="mt-4 font-body text-sm text-ink leading-relaxed font-medium">
-            Send this code to <span className="font-bold text-maroon underline">{defendantName}</span> to bring them to court.
-          </p>
+          <div className="mt-4 p-3 bg-wood-dark/20 rounded border border-maroon/20 text-center">
+            <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-900 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping" />
+              <span>പ്രതിക്കായി കാത്തിരിക്കുന്നു (Waiting for defendant to join...)</span>
+            </div>
+            <p className="mt-1 font-body text-xs text-ink/80 leading-relaxed">
+              Send this code to <span className="font-bold text-maroon underline">{defendantName}</span> to summon them to court.
+              Once they enter the code, you both will automatically be taken to the Waiting Room.
+            </p>
+          </div>
         </ParchmentPlaque>
       </div>
 
       <button
         onClick={onEnterCourtroom}
-        className="w-full rounded-panel bg-gradient-to-b from-brass-light to-brass py-3.5 px-6 font-display font-bold text-ink shadow-panel hover:from-brass hover:to-brass-dark transition transform active:scale-95 cursor-pointer text-center"
+        className="w-full rounded-panel bg-gradient-to-b from-brass-light via-brass to-brass-dark py-3.5 px-6 font-display font-extrabold text-[#2b1a0a] shadow-panel hover:brightness-105 transition transform active:scale-95 cursor-pointer text-center tracking-wide uppercase text-sm sm:text-base border border-brass-light/60"
       >
-        Enter Court Room
+        Go to Waiting Room (കാത്തിരിപ്പ് മുറി)
       </button>
     </div>
   );

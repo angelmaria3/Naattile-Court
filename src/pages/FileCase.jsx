@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BlurredHero from '../components/BlurredHero';
 import WoodPanel from '../components/WoodPanel';
@@ -7,6 +7,7 @@ import Button from '../components/Button';
 import CaseCodeDisplay from '../components/CaseCodeDisplay';
 import Seal from '../components/Seal';
 import { fileCase } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 export default function FileCase() {
   const navigate = useNavigate();
@@ -16,6 +17,56 @@ export default function FileCase() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filedCase, setFiledCase] = useState(null);
+
+  // When a case is filed, monitor in real time for when the defendant enters the code
+  useEffect(() => {
+    if (!filedCase?.code) return;
+    const upperCode = filedCase.code.toUpperCase();
+
+    const checkJoined = (record) => {
+      // If defendant joined, status changes to 'waiting' or 'joined'
+      if (record && (record.status === 'waiting' || record.status === 'joined' || record.defendant_token)) {
+        navigate(`/waiting-room/${upperCode}`, { 
+          state: { caseData: record, role: 'complainant' } 
+        });
+      }
+    };
+
+    // 1. Supabase Realtime channel
+    const channel = supabase
+      .channel(`file_case_listener_${upperCode}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cases', filter: `case_code=eq.${upperCode}` },
+        (payload) => {
+          if (payload.new) {
+            checkJoined(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    // 2. Resilient polling fallback every 1.5 seconds
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('cases')
+          .select('*')
+          .eq('case_code', upperCode)
+          .single();
+        if (data) {
+          checkJoined(data);
+        }
+      } catch (err) {
+        // silent polling catch
+      }
+    }, 1500);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [filedCase, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,9 +88,9 @@ export default function FileCase() {
     }
   };
 
-  const handleEnterCourtroom = () => {
+  const handleEnterWaitingRoom = () => {
     if (filedCase) {
-      navigate('/courtroom', { state: { caseData: filedCase, role: 'complainant' } });
+      navigate(`/waiting-room/${filedCase.code}`, { state: { caseData: filedCase, role: 'complainant' } });
     }
   };
 
@@ -58,7 +109,7 @@ export default function FileCase() {
             <CaseCodeDisplay
               code={filedCase.code}
               defendantName={filedCase.defendant_name}
-              onEnterCourtroom={handleEnterCourtroom}
+              onEnterCourtroom={handleEnterWaitingRoom}
             />
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
