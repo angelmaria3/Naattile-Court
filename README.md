@@ -1,4 +1,4 @@
-# ⚖️ Naatile Court (നാട്ടിലെ COURT)
+⚖️ Naatile Court (നാട്ടിലെ COURT)
 
 Small cases. Big drama.
 
@@ -6,7 +6,48 @@ Naatile Court is a fun, interactive web app where users file silly everyday disp
 
 Who ate the last pazhampori without asking? Who hogged the good seat? Who left you on read for three days? File the case. Let the court decide.
 
----
+QUANTUM CODERS
+ANGEL MARIA SUNIL - RAJIV GANDHI INSTITUTE OF TECHNOLOGY KOTTAYAM KERALA 
+AYSHA LINA - RAJIV GANDHI INSTITUTE OF TECHNOLOGY KOTTAYAM KERALA 
+
+നാട്ടിലെ COURT™ is an AI-powered virtual courtroom designed to settle the kinds of arguments that absolutely do not need a court.
+Users can file ridiculous everyday disputes, present arguments and evidence, summon suspicious witnesses, and let other users act as a jury. An AI-powered Naatile Judge analyzes the case and delivers a dramatic verdict along with a completely fictional Kerala-style punishment.
+The final verdict can also be recorded on the blockchain, giving every case its own tamper-resistant digital record.
+
+The Problem (that doesn't exist)
+People have countless tiny disputes:
+“Avan ente charger eduthu, thirichu thannilla.”
+“Aval ente pazhampori thinnittu paisa thannilla.”
+“Avan ente seat pidichu.”
+“Group project-il avan onnum cheythilla.”
+These problems are usually solved through arguments, WhatsApp messages, friends taking sides, and unsolicited opinions from everyone around.
+There is absolutely no need for a court.
+So naturally...
+We built one. ⚖️
+
+🔨 The Solution (that nobody asked for)
+
+നാട്ടിലെ COURT™ turns everyday arguments into an interactive courtroom experience.
+
+The process:
+📝 File a Case
+Submit a ridiculous dispute.
+👨‍⚖️ AI Judge Opens the Court
+The AI judge examines the case and begins the proceedings.
+🗣️ Both Sides Argue
+Plaintiff and defendant present their version of events.
+📂 Submit Evidence
+Upload screenshots, images, messages or written evidence.
+👵 Summon Witnesses
+Ammachi, Canteen Chettan, Auto Chettan and other suspicious witnesses can testify.
+👥 Jury Votes
+Other users decide whether the accused is guilty or not guilty.
+🔨 Verdict
+The AI Judge considers the arguments, evidence and jury opinion.
+📜 Punishment
+The judge applies a fictional Naatile Law and announces a ridiculous punishment.
+🔗 Blockchain Record
+The final verdict and evidence hash can be stored on-chain.
 
 ## ✨ Features
 
@@ -23,6 +64,36 @@ Who ate the last pazhampori without asking? Who hogged the good seat? Who left y
 
 ---
 
+Technical Details
+Architecture
+
+                    USER
+                      │
+                      ▼
+              ┌───────────────┐
+              │  COURTROOM UI │
+              └───────┬───────┘
+                      │
+                      ▼
+                BACKEND API
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+      AI JUDGE    CASE ENGINE   DATABASE
+          │           │
+          ▼           ▼
+      WITNESSES     JURY VOTES
+          │           │
+          └─────┬─────┘
+                ▼
+          FINAL VERDICT
+                │
+                ▼
+         SMART CONTRACT
+                │
+                ▼
+           BLOCKCHAIN
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
@@ -37,6 +108,35 @@ Who ate the last pazhampori without asking? Who hogged the good seat? Who left y
 
 ---
 
+AI Implementation
+
+The AI is not simply used as a chatbot.
+
+The Naatile Judge receives structured case information:
+
+Case
++
+Plaintiff Argument
++
+Defendant Argument
++
+Evidence
++
+Witness Statements
++
+Jury Result
+        ↓
+    AI Judge
+        ↓
+Questioning
++
+Reasoning
++
+Verdict
++
+Punishment
+
+The AI is instructed to maintain the personality of a humorous Kerala-style judge while still following the case information provided.
 ## 🗂️ Database Schema
 
 | Table | Purpose |
@@ -59,6 +159,34 @@ Guest identity is handled without a login system: when a case is created, a rand
 5. The courtroom UI renders the result as a stamped judgment sheet, color-coded red (Guilty) or green (Not Guilty).
 
 ---
+
+💀 Things That Went Wrong
+
+Building a useless court was surprisingly difficult.
+
+🤖 AI initially declared everyone guilty.
+👵 Witnesses sometimes contradicted themselves.
+👥 Jury votes had to be prevented from being duplicated.
+🔗 Blockchain transactions failed during early testing.
+📂 Evidence handling needed validation.
+⚖️ The judge occasionally gave completely unreasonable punishments.
+
+But every bug became another reason to improve the courtroom.
+
+📈 What We Learned
+
+Through this project, we explored:
+
+Prompt engineering and LLM integration
+Building AI-driven interactions
+Smart contracts and blockchain transactions
+Evidence hashing
+Real-time voting
+Database management
+Interactive UI/UX
+Git and collaborative development
+
+Most importantly, we learned that a ridiculous idea can still be a technically interesting project.
 
 ## 🚀 Getting Started
 
