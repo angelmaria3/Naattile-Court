@@ -1,9 +1,7 @@
-
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import Seal from '../components/Seal'
-import ParchmentPlaque from '../components/ParchmentPlaque'
 import { 
   Gavel, 
   Scale, 
@@ -11,9 +9,7 @@ import {
   BookOpen, 
   Users, 
   LogOut,
-  Send,
   MessageSquare,
-  Sparkles
 } from 'lucide-react'
 import './courtroom.css'
 
@@ -63,6 +59,14 @@ const DEFENDANT_WITNESSES = [
   }
 ]
 
+const JURY_PANEL = [
+  { name: 'Anjali', emoji: '👩🏽' },
+  { name: 'Rohit', emoji: '👨🏽' },
+  { name: 'Meera', emoji: '👩🏻' },
+  { name: 'Vishnu', emoji: '👨🏻' },
+  { name: 'Kiran', emoji: '🧑🏽' },
+]
+
 const LAW_BOOK: Record<string, { section: string; title: string; punishment: string }[]> = {
   Roommate: [
     { section: 'Section 420-P', title: 'Unauthorized Snack Consumption (പൊറോട്ട ചതി)', punishment: 'Replace item + 1 special chaya' },
@@ -101,56 +105,83 @@ export default function Courtroom() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
-  // Roles
   const [isPlaintiff, setIsPlaintiff] = useState(false)
   const [isDefendant, setIsDefendant] = useState(false)
 
-  // Complainant Evidence Form
   const [plaintiffEvidenceText, setPlaintiffEvidenceText] = useState('')
   const [plaintiffEvidenceFile, setPlaintiffEvidenceFile] = useState<File | null>(null)
   const [savingPlaintiffEvidence, setSavingPlaintiffEvidence] = useState(false)
 
-  // Defendant Statement Form
   const [defendantStatementInput, setDefendantStatementInput] = useState('')
   const [savingDefenseStatement, setSavingDefenseStatement] = useState(false)
 
-  // Defendant Counter-Evidence Form
   const [defendantEvidenceText, setDefendantEvidenceText] = useState('')
   const [defendantEvidenceFile, setDefendantEvidenceFile] = useState<File | null>(null)
   const [savingDefendantEvidence, setSavingDefendantEvidence] = useState(false)
 
-  // Witnesses & Jury
   const [summoning, setSummoning] = useState<string | null>(null)
   const [guiltyVotes, setGuiltyVotes] = useState(0)
   const [notGuiltyVotes, setNotGuiltyVotes] = useState(0)
-  const [hasVoted, setHasVoted] = useState(false)
+  const [jurorVotes, setJurorVotes] = useState<Record<string, string>>({})
 
-  // Verdict
   const [verdict, setVerdict] = useState<any>(null)
   const [verdictLoading, setVerdictLoading] = useState(false)
   const [showVerdictSplash, setShowVerdictSplash] = useState(false)
   const [showLawBook, setShowLawBook] = useState(false)
   const splashTimeoutRef = useRef<any>(null)
+  const proceedingsEndRef = useRef<HTMLDivElement>(null)
+  const [voterName, setVoterName] = useState('')
+  const [hasVoted, setHasVoted] = useState(false)
 
   const triggerVerdictSplash = () => {
-    if (splashTimeoutRef.current) {
-      clearTimeout(splashTimeoutRef.current)
-    }
+    if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
     setShowVerdictSplash(true)
-    splashTimeoutRef.current = setTimeout(() => {
-      setShowVerdictSplash(false)
-    }, 2000)
+    splashTimeoutRef.current = setTimeout(() => setShowVerdictSplash(false), 2000)
   }
 
   useEffect(() => {
     return () => {
-      if (splashTimeoutRef.current) {
-        clearTimeout(splashTimeoutRef.current)
-      }
+      if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
     }
   }, [])
 
-  const proceedingsEndRef = useRef<HTMLDivElement>(null)
+  const loadEvidence = async (caseUuid: string) => {
+    const { data } = await supabase
+      .from('evidence')
+      .select('*')
+      .eq('case_id', caseUuid)
+      .order('created_at', { ascending: true })
+    setEvidenceList(data ?? [])
+  }
+
+  const loadWitnesses = async (caseUuid: string) => {
+    const { data } = await supabase
+      .from('witness_statements')
+      .select('*')
+      .eq('case_id', caseUuid)
+      .order('created_at', { ascending: true })
+    setWitnessList(data ?? [])
+  }
+
+  const loadVotes = async (caseUuid: string) => {
+    const { data } = await supabase
+      .from('votes')
+      .select('vote, juror_name')
+      .eq('case_id', caseUuid)
+    const votesByJuror: Record<string, string> = {}
+    ;(data ?? []).forEach((v) => {
+      if (v.juror_name) votesByJuror[v.juror_name] = v.vote
+    })
+    setJurorVotes(votesByJuror)
+    setGuiltyVotes((data ?? []).filter(v => v.vote === 'guilty').length)
+    setNotGuiltyVotes((data ?? []).filter(v => v.vote === 'not_guilty').length)
+  }
+
+  const handleJurorVote = async (jurorName: string, vote: 'guilty' | 'not_guilty') => {
+    if (jurorVotes[jurorName]) return
+    await supabase.from('votes').insert({ case_id: caseData.id, vote, juror_name: jurorName })
+    await loadVotes(caseData.id)
+  }
 
   useEffect(() => {
     let channel: any
@@ -176,7 +207,7 @@ export default function Courtroom() {
       const creatorToken = localStorage.getItem(`case_${upperCode}_token`)
       const defToken = localStorage.getItem(`case_${upperCode}_defendant_token`)
       const defName = localStorage.getItem(`case_${upperCode}_defendant_name`)
-      
+
       setIsPlaintiff(Boolean(creatorToken && creatorToken === c.creator_token))
       setIsDefendant(Boolean((defToken && defToken === c.defendant_token) || (defName && defName === c.defendant)))
       setHasVoted(localStorage.getItem(`case_${upperCode}_voted`) === 'true')
@@ -186,15 +217,9 @@ export default function Courtroom() {
 
       channel = supabase
         .channel(`courtroom_live_${c.id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'evidence', filter: `case_id=eq.${c.id}` }, () => {
-          loadEvidence(c.id)
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'witness_statements', filter: `case_id=eq.${c.id}` }, () => {
-          loadWitnesses(c.id)
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `case_id=eq.${c.id}` }, () => {
-          loadVotes(c.id)
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'evidence', filter: `case_id=eq.${c.id}` }, () => loadEvidence(c.id))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'witness_statements', filter: `case_id=eq.${c.id}` }, () => loadWitnesses(c.id))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `case_id=eq.${c.id}` }, () => loadVotes(c.id))
         .subscribe()
     }
 
@@ -218,63 +243,35 @@ export default function Courtroom() {
     proceedingsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [witnessList, evidenceList])
 
-  const loadEvidence = async (caseUuid: string) => {
-    const { data } = await supabase
-      .from('evidence')
-      .select('*')
-      .eq('case_id', caseUuid)
-      .order('created_at', { ascending: true })
-    setEvidenceList(data ?? [])
-  }
-
-  const loadWitnesses = async (caseUuid: string) => {
-    const { data } = await supabase
-      .from('witness_statements')
-      .select('*')
-      .eq('case_id', caseUuid)
-      .order('created_at', { ascending: true })
-    setWitnessList(data ?? [])
-  }
-
-  const loadVotes = async (caseUuid: string) => {
-    const { data } = await supabase
-      .from('votes')
-      .select('vote')
-      .eq('case_id', caseUuid)
-    setGuiltyVotes((data ?? []).filter(v => v.vote === 'guilty').length)
-    setNotGuiltyVotes((data ?? []).filter(v => v.vote === 'not_guilty').length)
-  }
-
   const handleAddPlaintiffEvidence = async () => {
     if (!plaintiffEvidenceText.trim() && !plaintiffEvidenceFile) return
     setSavingPlaintiffEvidence(true)
 
     let fileUrl: string | null = null
-
     if (plaintiffEvidenceFile) {
       const filePath = `${caseData.id}/${Date.now()}-${plaintiffEvidenceFile.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('evidence-files')
-        .upload(filePath, plaintiffEvidenceFile)
-
+      const { error: uploadError } = await supabase.storage.from('evidence-files').upload(filePath, plaintiffEvidenceFile)
       if (uploadError) {
         alert('File upload failed: ' + uploadError.message)
         setSavingPlaintiffEvidence(false)
         return
       }
-
-      const { data: urlData } = supabase.storage
-        .from('evidence-files')
-        .getPublicUrl(filePath)
+      const { data: urlData } = supabase.storage.from('evidence-files').getPublicUrl(filePath)
       fileUrl = urlData.publicUrl
     }
 
-    await supabase.from('evidence').insert({
-      case_id: caseData.id,
-      description: plaintiffEvidenceText.trim() || null,
-      file_url: fileUrl,
-      submitted_by: 'plaintiff'
-    })
+    const { error: insertErr } = await supabase.from('evidence').insert({
+    case_id: caseData.id,
+    description: plaintiffEvidenceText.trim() || null,
+    file_url: fileUrl,
+    submitted_by: 'plaintiff'
+   })
+
+    if (insertErr) {
+    alert('Failed to add evidence: ' + insertErr.message)
+    setSavingPlaintiffEvidence(false)
+    return
+  }
 
     setPlaintiffEvidenceText('')
     setPlaintiffEvidenceFile(null)
@@ -287,12 +284,8 @@ export default function Courtroom() {
     setSavingDefenseStatement(true)
 
     const existing = evidenceList.find(e => e.submitted_by === 'defendant_statement')
-
     if (existing) {
-      await supabase
-        .from('evidence')
-        .update({ description: defendantStatementInput.trim() })
-        .eq('id', existing.id)
+      await supabase.from('evidence').update({ description: defendantStatementInput.trim() }).eq('id', existing.id)
     } else {
       await supabase.from('evidence').insert({
         case_id: caseData.id,
@@ -312,31 +305,29 @@ export default function Courtroom() {
     setSavingDefendantEvidence(true)
 
     let fileUrl: string | null = null
-
     if (defendantEvidenceFile) {
       const filePath = `${caseData.id}/${Date.now()}-def-${defendantEvidenceFile.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('evidence-files')
-        .upload(filePath, defendantEvidenceFile)
-
+      const { error: uploadError } = await supabase.storage.from('evidence-files').upload(filePath, defendantEvidenceFile)
       if (uploadError) {
         alert('File upload failed: ' + uploadError.message)
         setSavingDefendantEvidence(false)
         return
       }
-
-      const { data: urlData } = supabase.storage
-        .from('evidence-files')
-        .getPublicUrl(filePath)
+      const { data: urlData } = supabase.storage.from('evidence-files').getPublicUrl(filePath)
       fileUrl = urlData.publicUrl
     }
 
-    await supabase.from('evidence').insert({
-      case_id: caseData.id,
-      description: defendantEvidenceText.trim() || null,
-      file_url: fileUrl,
-      submitted_by: 'defendant'
-    })
+    const { error: insertErr } = await supabase.from('evidence').insert({
+    case_id: caseData.id,
+    description: defendantEvidenceText.trim() || null,
+    file_url: fileUrl,
+    submitted_by: 'defendant'
+   })
+   if (insertErr) {
+    alert('Failed to add evidence: ' + insertErr.message)
+    setSavingDefendantEvidence(false)
+    return
+  }
 
     setDefendantEvidenceText('')
     setDefendantEvidenceFile(null)
@@ -344,33 +335,51 @@ export default function Courtroom() {
     setSavingDefendantEvidence(false)
   }
 
-  const handleSummon = async (persona: { name: string; lines: string[] }, side: 'plaintiff' | 'defendant') => {
-    setSummoning(persona.name)
-    const line = persona.lines[Math.floor(Math.random() * persona.lines.length)]
-    
+  const handleSummon = async (persona: { name: string; tagline: string }, side: 'plaintiff' | 'defendant') => {
+  setSummoning(persona.name)
+  try {
+    const res = await fetch('https://fciltngewiorcbhaofsk.supabase.co/functions/v1/witness-statement', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer sb_publishable_obQzJtwbQ78yJ9aRBP8sLg_s-dMNd9b'
+      },
+      body: JSON.stringify({
+        witness_name: persona.name,
+        witness_personality: persona.tagline,
+        complaint_text: caseData.complaint
+      })
+    })
+    if (!res.ok) throw new Error('Witness could not be reached')
+    const { statement } = await res.json()
+
     await supabase.from('witness_statements').insert({
       case_id: caseData.id,
       witness_name: `${persona.name} (${side === 'plaintiff' ? 'വാദി' : 'പ്രതി'})`,
-      statement: line
+      statement
     })
-
     await loadWitnesses(caseData.id)
+  } catch (err: any) {
+    alert('Failed to summon witness: ' + (err.message || 'unknown error'))
+  } finally {
     setSummoning(null)
   }
+}
 
-  const handleVote = async (vote: 'guilty' | 'not_guilty') => {
-    if (hasVoted) return
-    await supabase.from('votes').insert({ case_id: caseData.id, vote })
+  const handleCastVote = async (vote: 'guilty' | 'not_guilty') => {
+    if (hasVoted || isPlaintiff || isDefendant || !voterName.trim()) return
+    const name = voterName.trim()
+    await supabase.from('votes').insert({ case_id: caseData.id, vote, juror_name: name })
     localStorage.setItem(`case_${caseId}_voted`, 'true')
     setHasVoted(true)
     await loadVotes(caseData.id)
-  }
+}
 
   const getVerdict = async () => {
     setVerdictLoading(true)
 
-    const defendantStatement = evidenceList.find(e => e.submitted_by === 'defendant_statement')?.description 
-      || localStorage.getItem(`case_${caseId}_defendant_statement`) 
+    const defendantStatement = evidenceList.find(e => e.submitted_by === 'defendant_statement')?.description
+      || localStorage.getItem(`case_${caseId}_defendant_statement`)
       || 'No formal defense statement submitted.'
 
     const totalVotes = guiltyVotes + notGuiltyVotes
@@ -400,7 +409,6 @@ export default function Courtroom() {
             ...defendantEvidence.map(e => `[Defendant Evidence]: ${e}`),
             ...witnessList.map(w => `[Witness ${w.witness_name}]: ${w.statement}`)
           ].join('\n') || 'Oral arguments only',
-          jury_percent: guiltyPct,
           juryGuiltyPercent: guiltyPct
         })
       })
@@ -429,7 +437,6 @@ export default function Courtroom() {
           ? `Accused (${caseData.defendant}) must apologize to ${caseData.plaintiff}, buy 2 hot parottas with beef/veg roast, and pour special chaya.`
           : `Complainant (${caseData.plaintiff}) must buy ${caseData.defendant} a cold lime juice and promise not to drag silly matters to court again.`
       }
-
       setVerdict(localVerdict)
       setVerdictLoading(false)
       triggerVerdictSplash()
@@ -444,11 +451,10 @@ export default function Courtroom() {
     getVerdict()
   }
 
-  // Filtered lists
   const plaintiffEvidence = evidenceList.filter(e => e.submitted_by !== 'defendant' && e.submitted_by !== 'defendant_statement')
   const defendantEvidence = evidenceList.filter(e => e.submitted_by === 'defendant')
-  const currentDefenseStatement = evidenceList.find(e => e.submitted_by === 'defendant_statement')?.description 
-    || localStorage.getItem(`case_${caseId}_defendant_statement`) 
+  const currentDefenseStatement = evidenceList.find(e => e.submitted_by === 'defendant_statement')?.description
+    || localStorage.getItem(`case_${caseId}_defendant_statement`)
     || ''
 
   const complainantWitnesses = witnessList.filter(w => w.witness_name?.includes('വാദി'))
@@ -494,9 +500,8 @@ export default function Courtroom() {
 
   return (
     <div className="courtroom-viewport">
-      {/* 2-SECOND CENTER VERDICT SPLASH OVERLAY */}
       {showVerdictSplash && verdict && (
-        <div 
+        <div
           id="center-verdict-splash"
           style={{ zIndex: 99999 }}
           className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-md pointer-events-none transition-all duration-300"
@@ -511,7 +516,6 @@ export default function Courtroom() {
             <div className="rivet-bl" />
             <div className="rivet-br" />
 
-            {/* Seal & Badge */}
             <div className="flex items-center justify-center gap-2 mb-2">
               <span className="text-2xl">⚖️</span>
               <span className="text-[11px] sm:text-xs font-mono font-bold tracking-[0.25em] uppercase text-[#ffd778]">
@@ -520,27 +524,23 @@ export default function Courtroom() {
               <span className="text-2xl">⚖️</span>
             </div>
 
-            {/* Big Stamp Verdict */}
             <div className="py-2">
               <div className={`text-5xl sm:text-7xl font-black font-display tracking-widest uppercase filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] ${
                 outcomeIsGuilty ? 'text-red-500' : 'text-green-400'
               }`}>
                 {outcomeIsGuilty ? 'GUILTY' : 'NOT GUILTY'}
               </div>
-
               <div className="text-3xl sm:text-4xl font-black font-malayalam text-white mt-1 drop-shadow-md">
                 {outcomeIsGuilty ? 'കുറ്റക്കാരൻ!' : 'കുറ്റവിമുക്തൻ!'}
               </div>
             </div>
 
-            {/* Accused & Case Subtext */}
             <div className="mt-3 pt-3 border-t border-white/20 text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5]">
               <p>
                 പ്രതി: <span className="text-[#ffd778] font-black">{caseData.defendant || 'Defendant'}</span> {outcomeIsGuilty ? 'കുറ്റക്കാരനാണെന്ന് കോടതി കണ്ടെത്തി!' : 'കുറ്റവിമുക്തനാണെന്ന് കോടതി വിധിച്ചു!'}
               </p>
             </div>
 
-            {/* 2s Animated Countdown Bar */}
             <div className="mt-4 w-full bg-black/50 h-2 rounded-full overflow-hidden border border-white/20">
               <div className={`h-full verdict-countdown-bar ${outcomeIsGuilty ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'bg-green-400 shadow-[0_0_10px_rgba(34,197,94,0.8)]'}`} />
             </div>
@@ -551,34 +551,23 @@ export default function Courtroom() {
         </div>
       )}
 
-      {/* Bright, Vibrant Courtroom Background Image */}
-      <div 
+      <div
         style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100vw',
-          height: '100vh',
+          position: 'fixed', inset: 0, width: '100vw', height: '100vh',
           backgroundImage: "url('/hero-courtroom.jpg?v=3')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundSize: 'cover', backgroundPosition: 'center',
           filter: 'blur(3px) brightness(0.85) contrast(1.05)',
-          transform: 'scale(1.03)',
-          pointerEvents: 'none',
-          zIndex: 0
+          transform: 'scale(1.03)', pointerEvents: 'none', zIndex: 0
         }}
       />
-      {/* Light Warm Vignette */}
-      <div 
+      <div
         style={{
-          position: 'fixed',
-          inset: 0,
+          position: 'fixed', inset: 0,
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(43,26,16,0.25), rgba(0,0,0,0.45))',
-          pointerEvents: 'none',
-          zIndex: 1
+          pointerEvents: 'none', zIndex: 1
         }}
       />
 
-      {/* Top Header Navigation */}
       <header className="courtroom-header">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
           <Seal size={30} />
@@ -612,19 +601,14 @@ export default function Courtroom() {
         </div>
       </header>
 
-      {/* Main Single-Screen 3-Box Arena */}
       <main className="courtroom-arena">
-        
-        {/* ========================================================= */}
-        {/* BOX 1 (LEFT SIDE OF WINDOW): COMPLAINANT                  */}
-        {/* ========================================================= */}
+
         <section className="courtroom-box-left">
           <div className="rivet-tl" />
           <div className="rivet-tr" />
           <div className="rivet-bl" />
           <div className="rivet-br" />
 
-          {/* Header */}
           <div className="flex-shrink-0 flex items-center justify-between border-b-2 border-[#a67432] pb-1.5 mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-lg">⚖️</span>
@@ -644,7 +628,6 @@ export default function Courtroom() {
             )}
           </div>
 
-          {/* Statement */}
           <div className="flex-shrink-0 mb-2">
             <span className="text-[10px] uppercase font-bold text-[#ffdf79] block mb-1">
               കുറ്റപത്രം (COMPLAINT STATEMENT)
@@ -654,7 +637,6 @@ export default function Courtroom() {
             </div>
           </div>
 
-          {/* Evidence List */}
           <div className="flex-1 min-h-0 flex flex-col mb-2 overflow-hidden">
             <div className="flex items-center justify-between mb-1 flex-shrink-0">
               <span className="text-[11px] uppercase font-extrabold text-[#ffdf79] flex items-center gap-1">
@@ -678,7 +660,6 @@ export default function Courtroom() {
               )}
             </div>
 
-            {/* Add Evidence Form */}
             <div className="flex-shrink-0 pt-2 space-y-1">
               <div className="flex gap-1.5">
                 <input
@@ -708,7 +689,6 @@ export default function Courtroom() {
             </div>
           </div>
 
-          {/* Witnesses */}
           <div className="flex-shrink-0 pt-1.5 border-t-2 border-[#a67432]">
             <span className="text-[10px] uppercase font-bold text-[#ffdf79] block mb-1">
               🎙️ സാക്ഷികൾ (WITNESSES)
@@ -740,16 +720,12 @@ export default function Courtroom() {
           </div>
         </section>
 
-        {/* ========================================================= */}
-        {/* BOX 2 (CENTER OF WINDOW): THE JUDGE BENCH, JURY & VERDICT */}
-        {/* ========================================================= */}
         <section className="courtroom-box-center">
           <div className="rivet-tl" />
           <div className="rivet-tr" />
           <div className="rivet-bl" />
           <div className="rivet-br" />
 
-          {/* Judge Pedestal Header with Bright Plaque */}
           <div className="flex-shrink-0 text-center pb-2 border-b-2 border-[#e0b95c] flex items-center justify-center gap-3">
             <Seal size={38} className="drop-shadow-sm" />
             <div className="bg-[#fffdf5] px-4 py-1 rounded shadow-md border border-[#dfcca0] text-[#7a2020]">
@@ -762,7 +738,6 @@ export default function Courtroom() {
             </div>
           </div>
 
-          {/* Live Proceedings Transcript with Bright Paper Styling */}
           <div className="flex-1 min-h-0 flex flex-col my-2 overflow-hidden">
             <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
               <span className="text-xs uppercase font-extrabold text-[#ffdf79] flex items-center gap-1.5">
@@ -791,13 +766,13 @@ export default function Courtroom() {
                 </div>
               )}
               {witnessList.map((w) => (
-                <div key={w.id} className="pb-1.5 border-b border-[#7a2020]/20">
+                <div key={w.id} className="pb-1.5 border-b border-[#7a2020]/20 animate-fade-in">
                   <span className="font-black text-[#7a2020] block">🎙️ {w.witness_name}:</span>
                   <span className="font-malayalam font-semibold">"{w.statement}"</span>
                 </div>
               ))}
               {evidenceList.map((e) => (
-                <div key={e.id} className="text-[11px] text-[#5c1f1f] font-semibold italic">
+                <div key={e.id} className="text-[11px] text-[#5c1f1f] font-semibold italic animate-fade-in">
                   📎 Evidence ({e.submitted_by === 'defendant' ? 'Defendant' : 'Plaintiff'}): "{e.description || 'Photo/Document'}"
                 </div>
               ))}
@@ -805,9 +780,8 @@ export default function Courtroom() {
             </div>
           </div>
 
-          {/* Official Verdict Result (Directly under the Judge/Proceedings) */}
           {verdict && (
-            <div 
+            <div
               onClick={triggerVerdictSplash}
               title="Click to view 2s Center Verdict Announcement"
               className="flex-shrink-0 animate-scale-in mb-2 cursor-pointer hover:brightness-110 active:scale-98 transition"
@@ -841,7 +815,6 @@ export default function Courtroom() {
             </div>
           )}
 
-          {/* Jury Panel & Deliver Verdict Button with High Contrast */}
           <div className="flex-shrink-0 bg-[#3a2213] p-2.5 rounded border-2 border-[#e0b95c]/60 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-extrabold text-[#ffdf79] flex items-center gap-1.5">
@@ -854,51 +827,89 @@ export default function Courtroom() {
               </div>
             </div>
 
-            {/* Split bar */}
             <div className="w-full h-2 bg-[#1f1106] rounded-full overflow-hidden flex border border-[#e0b95c]/40">
               <div style={{ width: `${guiltyPct}%` }} className="bg-red-600 transition-all duration-500" />
               <div style={{ width: `${100 - guiltyPct}%` }} className="bg-green-600 transition-all duration-500" />
             </div>
 
-            {/* Voting & Gavel Buttons */}
-            <div className="grid grid-cols-12 gap-2 pt-0.5">
-              <button
-                onClick={() => handleVote('guilty')}
-                disabled={hasVoted}
-                className="col-span-3 py-1.5 px-2 rounded text-xs font-display font-black uppercase bg-red-700 hover:bg-red-600 text-white border border-red-400 transition cursor-pointer disabled:opacity-50 shadow-sm"
-              >
-                🛑 GUILTY
-              </button>
-              <button
-                onClick={() => handleVote('not_guilty')}
-                disabled={hasVoted}
-                className="col-span-3 py-1.5 px-2 rounded text-xs font-display font-black uppercase bg-green-700 hover:bg-green-600 text-white border border-green-400 transition cursor-pointer disabled:opacity-50 shadow-sm"
-              >
-                🟢 NOT GUILTY
-              </button>
-              <button
-                id="final-verdict-btn"
-                onClick={handleFinalVerdictClick}
-                disabled={verdictLoading}
-                className="col-span-6 py-1.5 px-3 rounded font-display font-black text-xs sm:text-sm uppercase tracking-wider bg-gradient-to-b from-[#ffd778] via-[#e4b248] to-[#be8624] text-[#1c0e04] border-2 border-white/60 hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60 shadow-md"
-              >
-                <Gavel className="w-4 h-4" />
-                <span>{verdictLoading ? 'Deliberating...' : 'FINAL VERDICT 🔨'}</span>
-              </button>
-            </div>
+            {Object.keys(jurorVotes).length > 0 && (
+  <div className="flex flex-wrap gap-1.5 pt-1">
+    {Object.entries(jurorVotes).map(([name, vote]) => (
+      <div
+        key={name}
+        className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold border ${
+          vote === 'guilty' ? 'bg-red-900/40 border-red-500 text-red-200' : 'bg-green-900/40 border-green-500 text-green-200'
+        }`}
+      >
+        <span>{name}</span>
+        <span>{vote === 'guilty' ? 'G' : 'NG'}</span>
+      </div>
+    ))}
+  </div>
+)}
+
+{!isPlaintiff && !isDefendant && !hasVoted && (
+  <div className="pt-2 space-y-1.5">
+    <input
+      type="text"
+      placeholder="Your name (juror)"
+      value={voterName}
+      onChange={(e) => setVoterName(e.target.value)}
+      className="w-full bg-[#2e190d] border border-[#a67432] rounded px-2 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#ffd778]"
+    />
+    <div className="flex gap-1.5">
+      <button
+        onClick={() => handleCastVote('guilty')}
+        disabled={!voterName.trim()}
+        className="flex-1 bg-red-800 hover:bg-red-700 text-white text-xs font-bold py-1.5 rounded disabled:opacity-40 cursor-pointer"
+      >
+        GUILTY
+      </button>
+      <button
+        onClick={() => handleCastVote('not_guilty')}
+        disabled={!voterName.trim()}
+        className="flex-1 bg-green-800 hover:bg-green-700 text-white text-xs font-bold py-1.5 rounded disabled:opacity-40 cursor-pointer"
+      >
+        NOT GUILTY
+      </button>
+    </div>
+  </div>
+)}
+
+{hasVoted && (
+  <p className="text-[10px] text-[#ffd778] text-center pt-1">✓ Your vote has been recorded.</p>
+)}
+
+{(isPlaintiff || isDefendant) && (
+  <p className="text-[10px] text-white/50 text-center pt-1 italic">As a party to this case, you cannot vote.</p>
+)}
+
+            <button
+  id="final-verdict-btn"
+  onClick={handleFinalVerdictClick}
+  disabled={verdictLoading || totalVotes === 0 || !currentDefenseStatement}
+  className="w-full mt-2 py-2 rounded font-display font-black text-sm uppercase tracking-wider bg-gradient-to-b from-[#ffd778] via-[#e4b248] to-[#be8624] text-[#1c0e04] border-2 border-white/60 hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
+>
+  <Gavel className="w-4 h-4" />
+  <span>
+    {verdictLoading
+      ? 'Deliberating...'
+      : totalVotes === 0
+      ? 'Waiting for jury votes'
+      : !currentDefenseStatement
+      ? "Waiting for defendant's statement"
+      : 'FINAL VERDICT 🔨'}
+  </span>
+</button>
           </div>
         </section>
 
-        {/* ========================================================= */}
-        {/* BOX 3 (RIGHT SIDE OF WINDOW): DEFENDANT                   */}
-        {/* ========================================================= */}
         <section className="courtroom-box-right">
           <div className="rivet-tl" />
           <div className="rivet-tr" />
           <div className="rivet-bl" />
           <div className="rivet-br" />
 
-          {/* Header */}
           <div className="flex-shrink-0 flex items-center justify-between border-b-2 border-[#a67432] pb-1.5 mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-lg">📜</span>
@@ -918,7 +929,6 @@ export default function Courtroom() {
             )}
           </div>
 
-          {/* Statement */}
           <div className="flex-shrink-0 mb-2">
             <span className="text-[10px] uppercase font-bold text-[#ffdf79] block mb-1">
               പ്രതിയുടെ മൊഴി (DEFENSE STATEMENT)
@@ -933,7 +943,6 @@ export default function Courtroom() {
               </div>
             )}
 
-            {/* Input form */}
             <div className="mt-1.5 flex gap-1.5">
               <input
                 type="text"
@@ -952,7 +961,6 @@ export default function Courtroom() {
             </div>
           </div>
 
-          {/* Counter-Evidence List */}
           <div className="flex-1 min-h-0 flex flex-col mb-2 overflow-hidden">
             <div className="flex items-center justify-between mb-1 flex-shrink-0">
               <span className="text-[11px] uppercase font-extrabold text-[#ffdf79] flex items-center gap-1">
@@ -976,7 +984,6 @@ export default function Courtroom() {
               )}
             </div>
 
-            {/* Add Counter-Evidence Form */}
             <div className="flex-shrink-0 pt-2 space-y-1">
               <div className="flex gap-1.5">
                 <input
@@ -1006,7 +1013,6 @@ export default function Courtroom() {
             </div>
           </div>
 
-          {/* Defendant Witnesses */}
           <div className="flex-shrink-0 pt-1.5 border-t-2 border-[#a67432]">
             <span className="text-[10px] uppercase font-bold text-[#ffdf79] block mb-1">
               🎙️ സാക്ഷികൾ (WITNESSES)
@@ -1040,7 +1046,6 @@ export default function Courtroom() {
 
       </main>
 
-      {/* Law Book Modal */}
       {showLawBook && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="courtroom-box-center max-w-md w-full max-h-[80vh] overflow-y-auto border-[#ffd778] custom-scroll">
@@ -1087,4 +1092,3 @@ export default function Courtroom() {
     </div>
   )
 }
-

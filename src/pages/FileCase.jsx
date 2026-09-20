@@ -20,6 +20,7 @@ export default function FileCase() {
 
   // When a case is filed, monitor in real time for when the defendant enters the code
   useEffect(() => {
+    
     if (!filedCase?.code) return;
     const upperCode = filedCase.code.toUpperCase();
 

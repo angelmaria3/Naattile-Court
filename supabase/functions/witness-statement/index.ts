@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+}
+
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   const { witness_name, witness_personality, complaint_text } = await req.json()
 
   const prompt = `You are ${witness_name}, a witness character in a Kerala courtroom comedy: ${witness_personality}.
@@ -22,9 +31,9 @@ Give a ONE-LINE witness statement in character, funny and short (under 25 words)
   })
 
   const data = await response.json()
-  const statement = data.choices[0].message.content.trim()
+  const statement = data.choices?.[0]?.message?.content?.trim() || "No comment, your honor."
 
   return new Response(JSON.stringify({ statement }), {
-    headers: { "Content-Type": "application/json" }
+    headers: { ...corsHeaders, "Content-Type": "application/json" }
   })
 })
