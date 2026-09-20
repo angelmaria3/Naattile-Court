@@ -5,7 +5,6 @@ import CreateCase from './pages/CreateCase';
 import JoinCase from './pages/JoinCase';
 import JoinCourtroom from './pages/JoinCourtroom';
 import CourtroomNew from './pages/Courtroom.tsx';
-import CourtroomLocal from './pages/Courtroom.jsx';
 
 export default function App() {
   return (
@@ -22,9 +21,8 @@ export default function App() {
         <Route path="/join" element={<JoinCase />} />
         <Route path="/join-courtroom" element={<JoinCourtroom />} />
 
-        {/* Courtroom session with evidence, jury, witnesses */}
-        <Route path="/courtroom/:caseId" element={<CourtroomNew />} />
-        <Route path="/courtroom" element={<CourtroomLocal />} />
+        {/* Courtroom session with evidence, jury, verdict */}
+        <Route path="/courtroom" element={<CourtroomNew />} />
       </Routes>
     </Router>
   );

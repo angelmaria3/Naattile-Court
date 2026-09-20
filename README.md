@@ -104,7 +104,6 @@ Run the app locally:
 npm run dev
 ```
 
----
 
 ## 🗺️ Roadmap / What's Next
 
