@@ -569,37 +569,46 @@ export default function Courtroom() {
       />
 
       <header className="courtroom-header">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-          <Seal size={30} />
-          <span className="font-display font-black text-base text-[#ffdf79] tracking-wider drop-shadow-sm">
-            നാട്ടിലെ COURT
-          </span>
-        </div>
+  <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+    <Seal size={30} />
+    <span className="font-display font-black text-base text-[#ffdf79] tracking-wider drop-shadow-sm">
+      നാട്ടിലെ COURT
+    </span>
+  </div>
 
-        <div className="flex items-center gap-2 bg-[#4a2e18] border-2 border-[#e0b95c]/80 px-3.5 py-1 rounded shadow-sm text-xs">
-          <span className="font-bold text-[#ffdf79]">DOCKET:</span>
-          <span className="font-mono font-black text-white tracking-widest text-sm">#{caseData.case_code}</span>
-          <span className="text-[#e0b95c]/50">|</span>
-          <span className="text-white/90 font-mono text-[11px]">{filedDate}</span>
-        </div>
+  <nav className="flex items-center gap-1">
+    <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase bg-[#5a381e] text-[#ffdf79] border border-[#e0b95c] flex items-center gap-1.5">
+      <Scale className="w-3.5 h-3.5" /> Courtroom
+    </span>
+    <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/50 flex items-center gap-1.5 cursor-not-allowed">
+      <FileText className="w-3.5 h-3.5" /> Case File
+    </span>
+    <button
+      onClick={() => setShowLawBook(!showLawBook)}
+      className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/70 hover:text-[#ffdf79] flex items-center gap-1.5 cursor-pointer transition"
+    >
+      <BookOpen className="w-3.5 h-3.5" /> Law Book
+    </button>
+    <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/50 flex items-center gap-1.5 cursor-not-allowed">
+      <Users className="w-3.5 h-3.5" /> Leaderboard
+    </span>
+  </nav>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowLawBook(!showLawBook)}
-            className="px-3 py-1 rounded text-xs font-display font-bold uppercase bg-[#5a381e] hover:bg-[#6e4425] text-[#ffdf79] border border-[#e0b95c] transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Law Book</span>
-          </button>
-          <button
-            onClick={() => navigate('/')}
-            className="px-3 py-1 rounded text-xs font-display font-bold uppercase bg-[#4a1c14] hover:bg-[#5f241a] text-white border border-red-500/50 transition flex items-center gap-1 cursor-pointer shadow-sm"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Exit</span>
-          </button>
-        </div>
-      </header>
+  <div className="flex items-center gap-2 bg-[#4a2e18] border-2 border-[#e0b95c]/80 px-3.5 py-1 rounded shadow-sm text-xs">
+    <span className="font-bold text-[#ffdf79]">DOCKET:</span>
+    <span className="font-mono font-black text-white tracking-widest text-sm">#{caseData.case_code}</span>
+    <span className="text-[#e0b95c]/50">|</span>
+    <span className="text-white/90 font-mono text-[11px]">{filedDate}</span>
+  </div>
+
+  <button
+    onClick={() => navigate('/')}
+    className="px-3 py-1 rounded text-xs font-display font-bold uppercase bg-[#4a1c14] hover:bg-[#5f241a] text-white border border-red-500/50 transition flex items-center gap-1 cursor-pointer shadow-sm"
+  >
+    <LogOut className="w-3.5 h-3.5" />
+    <span>Exit</span>
+  </button>
+</header>
 
       <main className="courtroom-arena">
 
@@ -645,20 +654,28 @@ export default function Courtroom() {
               </span>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 bg-[#3a2213] p-2 rounded border border-[#a67432]/70 custom-scroll">
-              {plaintiffEvidence.length === 0 ? (
-                <p className="text-xs text-white/50 italic p-1">No evidence submitted yet.</p>
-              ) : (
-                plaintiffEvidence.map((e) => (
-                  <div key={e.id} className="bg-[#4a2e1a] p-2 rounded border border-[#a67432] text-xs text-white">
-                    {e.file_url && (
-                      <img src={e.file_url} alt="evidence" className="w-full h-16 object-cover rounded mb-1 border border-black/30" />
-                    )}
-                    <p className="font-body leading-tight text-white font-medium">{e.description || 'Photo/Document'}</p>
-                  </div>
-                ))
-              )}
-            </div>
+            <div className="flex-1 min-h-0 overflow-x-auto flex gap-2 pb-1 bg-[#3a2213] p-2 rounded border border-[#a67432]/70 custom-scroll">
+  {plaintiffEvidence.length === 0 ? (
+    <p className="text-xs text-white/50 italic p-1">No evidence submitted yet.</p>
+  ) : (
+    plaintiffEvidence.map((e, i) => (
+      <div
+        key={e.id}
+        className="flex-shrink-0 w-24 bg-[#fffdf5] p-1.5 pb-2 rounded shadow-lg border border-black/10"
+        style={{ transform: `rotate(${i % 2 === 0 ? -2 : 2}deg)` }}
+      >
+        {e.file_url ? (
+          <img src={e.file_url} alt="evidence" className="w-full h-16 object-cover rounded-sm" />
+        ) : (
+          <div className="w-full h-16 bg-[#e8dfc8] rounded-sm flex items-center justify-center text-lg">📄</div>
+        )}
+        <p className="text-[9px] text-[#241206] font-body mt-1 text-center truncate">
+          {e.description || 'Photo/Document'}
+        </p>
+      </div>
+    ))
+  )}
+</div>
 
             <div className="flex-shrink-0 pt-2 space-y-1">
               <div className="flex gap-1.5">
@@ -693,20 +710,28 @@ export default function Courtroom() {
             <span className="text-[10px] uppercase font-bold text-[#ffdf79] block mb-1">
               🎙️ സാക്ഷികൾ (WITNESSES)
             </span>
-            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-              {COMPLAINANT_WITNESSES.map((w) => (
-                <button
-                  key={w.name}
-                  onClick={() => handleSummon(w, 'plaintiff')}
-                  disabled={summoning === w.name}
-                  className="p-1.5 text-xs font-bold rounded bg-[#4a2e1a] hover:bg-[#ffd778] hover:text-[#1c0e04] text-white border border-[#a67432] transition truncate cursor-pointer text-left flex items-center justify-between shadow-sm"
-                  title={w.role}
-                >
-                  <span className="truncate">{w.name}</span>
-                  <span className="text-xs">📢</span>
-                </button>
-              ))}
-            </div>
+            <div className="space-y-1.5 mb-1.5">
+  {COMPLAINANT_WITNESSES.map((w) => (
+    <div key={w.name} className="flex items-center justify-between bg-[#4a2e1a] border border-[#a67432] rounded p-1.5">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-7 h-7 rounded-full bg-[#ffd778]/20 border border-[#ffd778]/50 flex items-center justify-center text-sm flex-shrink-0">
+          👤
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-white truncate">{w.name}</p>
+          <p className="text-[9px] text-white/50 truncate">{w.tagline}</p>
+        </div>
+      </div>
+      <button
+        onClick={() => handleSummon(w, 'plaintiff')}
+        disabled={summoning === w.name}
+        className="text-[10px] font-bold px-2 py-1 rounded bg-[#5a381e] hover:bg-[#ffd778] hover:text-[#1c0e04] text-[#ffdf79] border border-[#e0b95c]/60 flex-shrink-0 cursor-pointer transition disabled:opacity-50"
+      >
+        {summoning === w.name ? '...' : 'Summon'}
+      </button>
+    </div>
+  ))}
+</div>
 
             {complainantWitnesses.length > 0 && (
               <div className="max-h-16 overflow-y-auto space-y-1 bg-[#fffdf5] p-2 rounded border border-[#dfcca0] text-xs text-[#241206] font-malayalam custom-scroll font-semibold">
@@ -781,40 +806,43 @@ export default function Courtroom() {
           </div>
 
           {verdict && (
-            <div
-              onClick={triggerVerdictSplash}
-              title="Click to view 2s Center Verdict Announcement"
-              className="flex-shrink-0 animate-scale-in mb-2 cursor-pointer hover:brightness-110 active:scale-98 transition"
-            >
-              <div className={`p-3 rounded border-2 shadow-2xl ${
-                outcomeIsGuilty
-                  ? 'bg-[#3b1212] border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.35)]'
-                  : 'bg-[#12361d] border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.35)]'
-              }`}>
-                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/20">
-                  <div className="flex items-center gap-1.5">
-                    <Scale className={`w-4 h-4 ${outcomeIsGuilty ? 'text-red-400' : 'text-green-400'}`} />
-                    <span className="text-xs font-black uppercase tracking-wider text-[#ffdf79] font-display">
-                      OFFICIAL JUDGMENT / അന്തിമ വിധി
-                    </span>
-                  </div>
-                  <span className={`text-xs font-black px-3 py-0.5 rounded border uppercase tracking-widest font-display shadow ${
-                    outcomeIsGuilty ? 'bg-red-700 text-white border-red-300' : 'bg-green-700 text-white border-green-300'
-                  }`}>
-                    {verdict.verdict}
-                  </span>
-                </div>
-                <p className="text-xs font-malayalam text-white leading-relaxed font-bold mb-1.5">
-                  "{verdict.reasoning}"
-                </p>
-                <div className="flex items-center justify-between text-xs text-[#ffdf79] pt-1.5 border-t border-white/10 font-bold">
-                  <span className="truncate max-w-[50%]"><strong>നിയമം:</strong> {verdict.fictional_law}</span>
-                  <span className="text-amber-200 truncate max-w-[48%] text-right font-extrabold"><strong>ശിക്ഷ:</strong> {verdict.punishment}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
+  <div
+    onClick={triggerVerdictSplash}
+    className="flex-shrink-0 animate-scale-in mb-2 cursor-pointer hover:brightness-105 active:scale-98 transition"
+  >
+    <div className="bg-[#fffdf5] rounded-lg p-4 border-2 border-[#dfcca0] shadow-xl">
+      <div className="grid grid-cols-2 gap-4 divide-x divide-[#dfcca0]">
+        <div>
+          <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
+            <Scale className="w-3 h-3" /> Verdict
+          </span>
+          <div
+            className={`inline-block px-3 py-1 rounded border-2 font-display font-black text-lg uppercase tracking-wider ${
+              outcomeIsGuilty
+                ? 'border-red-600 text-red-700 bg-red-50'
+                : 'border-green-600 text-green-700 bg-green-50'
+            }`}
+            style={{ transform: 'rotate(-3deg)' }}
+          >
+            {outcomeIsGuilty ? 'GUILTY' : 'NOT GUILTY'}
+          </div>
+        </div>
+        <div className="pl-4">
+          <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
+            <Gavel className="w-3 h-3" /> Punishment
+          </span>
+          <p className="text-xs text-[#241206] font-body font-semibold leading-snug">
+            {verdict.punishment}
+          </p>
+        </div>
+      </div>
+      <p className="text-xs text-[#5c1f1f] font-body italic mt-3 pt-3 border-t border-[#dfcca0]">
+        "{verdict.reasoning}" — Hon. Naatile Judge
+      </p>
+      <p className="text-[10px] text-[#7a2020]/50 font-mono mt-1">{verdict.fictional_law}</p>
+    </div>
+  </div>
+)}
           <div className="flex-shrink-0 bg-[#3a2213] p-2.5 rounded border-2 border-[#e0b95c]/60 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-extrabold text-[#ffdf79] flex items-center gap-1.5">
