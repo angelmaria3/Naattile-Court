@@ -13,6 +13,25 @@ import {
 } from 'lucide-react'
 import './courtroom.css'
 
+// import { askJSON, witnessSystem, looksValid, FALLBACK_WITNESS } from "../_shared/malayalam.ts";
+
+// const obj = await askJSON(
+//   witnessSystem(witnessName),
+//   `Complaint: ${complaint}\nPlaintiff: ${plaintiff}\nDefendant: ${defendant}`,
+//   (o) => typeof o.statement === "string" && looksValid(o.statement)
+// );
+// const statement = obj?.statement ?? FALLBACK_WITNESS[witnessName];
+
+// import { askJSON, JUDGE_SYSTEM, looksValid } from "../_shared/malayalam.ts";
+
+// const obj = await askJSON(
+//   JUDGE_SYSTEM,
+//   `Complaint: ${complaint}\nPlaintiff: ${plaintiff}\nDefendant: ${defendant}\nEvidence: ${JSON.stringify(evidence)}\nJury % guilty: ${jury_percent}`,
+//   (o) => o.verdict && looksValid(o.reasoning) && looksValid(o.punishment) && looksValid(o.fictional_law)
+// );
+// // if obj is null, return your existing fallback verdict
+
+
 const COMPLAINANT_WITNESSES = [
   {
     name: 'Ammachi',
@@ -280,26 +299,29 @@ export default function Courtroom() {
   }
 
   const handleSaveDefenseStatement = async () => {
-    if (!defendantStatementInput.trim()) return
-    setSavingDefenseStatement(true)
+  const text = defendantStatementInput.trim()
+  if (!text) return
+  setSavingDefenseStatement(true)
 
-    const existing = evidenceList.find(e => e.submitted_by === 'defendant_statement')
-    if (existing) {
-      await supabase.from('evidence').update({ description: defendantStatementInput.trim() }).eq('id', existing.id)
-    } else {
-      await supabase.from('evidence').insert({
+  const existing = evidenceList.find(e => e.submitted_by === 'defendant_statement')
+  const { error } = existing
+    ? await supabase.from('evidence').update({ description: text }).eq('id', existing.id)
+    : await supabase.from('evidence').insert({
         case_id: caseData.id,
-        description: defendantStatementInput.trim(),
+        description: text,
         submitted_by: 'defendant_statement'
       })
-    }
 
-    localStorage.setItem(`case_${caseId}_defendant_statement`, defendantStatementInput.trim())
-    await loadEvidence(caseData.id)
-    setSavingDefenseStatement(false)
-    setDefendantStatementInput('')
+  setSavingDefenseStatement(false)
+  if (error) {
+    alert('Could not save defense statement: ' + error.message)
+    return
   }
 
+  localStorage.setItem(`case_${caseId}_defendant_statement`, text)
+  await loadEvidence(caseData.id)
+  setDefendantStatementInput('')
+}
   const handleAddDefendantEvidence = async () => {
     if (!defendantEvidenceText.trim() && !defendantEvidenceFile) return
     setSavingDefendantEvidence(true)
@@ -335,9 +357,16 @@ export default function Courtroom() {
     setSavingDefendantEvidence(false)
   }
 
-  const handleSummon = async (persona: { name: string; tagline: string }, side: 'plaintiff' | 'defendant') => {
+ const handleSummon = async (
+  persona: { name: string; role: string; tagline: string },
+  side: 'plaintiff' | 'defendant'
+) => {
   setSummoning(persona.name)
   try {
+    const evidenceNotes = evidenceList
+      .filter(e => e.description && e.submitted_by !== 'defendant_statement')
+      .map(e => `${e.submitted_by === 'defendant' ? 'പ്രതി' : 'വാദി'}: ${e.description}`)
+
     const res = await fetch('https://fciltngewiorcbhaofsk.supabase.co/functions/v1/witness-statement', {
       method: 'POST',
       headers: {
@@ -346,17 +375,21 @@ export default function Courtroom() {
       },
       body: JSON.stringify({
         witness_name: persona.name,
-        witness_personality: persona.tagline,
-        complaint_text: caseData.complaint
+        witness_personality: `${persona.role}. ${persona.tagline}`,
+        side,
+        complaint_text: caseData.complaint,
+        defense_text: currentDefenseStatement,
+        evidence: evidenceNotes
       })
     })
-    if (!res.ok) throw new Error('Witness could not be reached')
-    const { statement } = await res.json()
+
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok || !body.statement) throw new Error(body.error || 'Witness could not be reached')
 
     await supabase.from('witness_statements').insert({
       case_id: caseData.id,
       witness_name: `${persona.name} (${side === 'plaintiff' ? 'വാദി' : 'പ്രതി'})`,
-      statement
+      statement: body.statement
     })
     await loadWitnesses(caseData.id)
   } catch (err: any) {
@@ -972,21 +1005,22 @@ export default function Courtroom() {
             )}
 
             <div className="mt-1.5 flex gap-1.5">
-              <input
-                type="text"
-                placeholder="Enter defense statement..."
-                value={defendantStatementInput}
-                onChange={(e) => setDefendantStatementInput(e.target.value)}
-                className="flex-1 bg-[#2e190d] border border-[#a67432] rounded px-2 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#ffd778]"
-              />
-              <button
-                onClick={handleSaveDefenseStatement}
-                disabled={savingDefenseStatement || !defendantStatementInput.trim()}
-                className="bg-gradient-to-b from-[#ffd778] to-[#be8624] text-[#1c0e04] text-xs font-black px-3 py-1 rounded cursor-pointer disabled:opacity-40 shadow-sm"
-              >
-                {savingDefenseStatement ? '...' : 'Submit'}
-              </button>
-            </div>
+  <input
+    type="text"
+    placeholder="Enter defense statement..."
+    value={defendantStatementInput}
+    onChange={(e) => setDefendantStatementInput(e.target.value)}
+    onKeyDown={(e) => e.key === 'Enter' && handleSaveDefenseStatement()}
+    className="flex-1 bg-[#2e190d] border border-[#a67432] rounded px-2 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#ffd778]"
+  />
+  <button
+    onClick={handleSaveDefenseStatement}
+    disabled={savingDefenseStatement}
+    className="bg-gradient-to-b from-[#ffd778] to-[#be8624] text-[#1c0e04] text-xs font-black px-3 py-1 rounded cursor-pointer disabled:opacity-40 shadow-sm"
+  >
+    {savingDefenseStatement ? '...' : 'Submit'}
+  </button>
+</div>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col mb-2 overflow-hidden">

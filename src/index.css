@@ -13,6 +13,11 @@
   }
 }
 
+body, button, input, textarea {
+  font-family: 'Noto Sans Malayalam', 'Manjari', system-ui, sans-serif;
+  line-height: 1.75;   /* Malayalam conjuncts need extra height or they clip */
+}
+
 ::-webkit-scrollbar {
   width: 8px;
 }
