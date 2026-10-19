@@ -16,9 +16,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders })
 
   try {
-    if (!Deno.env.get("ANTHROPIC_API_KEY")) {
-      return json({ error: "ANTHROPIC_API_KEY secret is not set on this project" }, 500)
-    }
+    // if (!Deno.env.get("ANTHROPIC_API_KEY")) {
+    //   return json({ error: "ANTHROPIC_API_KEY secret is not set on this project" }, 500)
+    // }
 
     const { witness_name, witness_personality, side, complaint_text, defense_text, evidence } =
       await req.json()

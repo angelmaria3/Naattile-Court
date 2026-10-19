@@ -2,56 +2,36 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import Seal from '../components/Seal'
-import { 
-  Gavel, 
-  Scale, 
-  FileText, 
-  BookOpen, 
-  Users, 
+import Avatar, { specFor, avatarFromName } from '../components/Avatar'
+import JuryPanel from '../components/JuryPanel'
+import type { JurorView } from '../components/JuryPanel'
+import {
+  Gavel,
+  Scale,
+  FileText,
+  BookOpen,
+  Users,
   LogOut,
   MessageSquare,
 } from 'lucide-react'
 import './courtroom.css'
 
-// import { askJSON, witnessSystem, looksValid, FALLBACK_WITNESS } from "../_shared/malayalam.ts";
-
-// const obj = await askJSON(
-//   witnessSystem(witnessName),
-//   `Complaint: ${complaint}\nPlaintiff: ${plaintiff}\nDefendant: ${defendant}`,
-//   (o) => typeof o.statement === "string" && looksValid(o.statement)
-// );
-// const statement = obj?.statement ?? FALLBACK_WITNESS[witnessName];
-
-// import { askJSON, JUDGE_SYSTEM, looksValid } from "../_shared/malayalam.ts";
-
-// const obj = await askJSON(
-//   JUDGE_SYSTEM,
-//   `Complaint: ${complaint}\nPlaintiff: ${plaintiff}\nDefendant: ${defendant}\nEvidence: ${JSON.stringify(evidence)}\nJury % guilty: ${jury_percent}`,
-//   (o) => o.verdict && looksValid(o.reasoning) && looksValid(o.punishment) && looksValid(o.fictional_law)
-// );
-// // if obj is null, return your existing fallback verdict
-
+const FN_URL = 'https://fciltngewiorcbhaofsk.supabase.co/functions/v1'
+const FN_HEADERS = {
+  'Content-Type': 'application/json',
+  'Authorization': 'Bearer sb_publishable_obQzJtwbQ78yJ9aRBP8sLg_s-dMNd9b'
+}
 
 const COMPLAINANT_WITNESSES = [
   {
     name: 'Ammachi',
     role: 'ബാൽക്കണി സാക്ഷി (Balcony)',
     tagline: "Knows everything. Especially what she didn't see.",
-    lines: [
-      'I saw the whole thing from the balcony, and let me tell you, it was scandalous.',
-      'In my time, this would have been settled with a slipper, not a court case.',
-      'I did not see anything, but I have a strong feeling about who is wrong.'
-    ]
   },
   {
     name: 'College Friend',
     role: 'റൂംമേറ്റ് (Roommate)',
     tagline: 'Neutral, but definitely leaning towards complainant.',
-    lines: [
-      "Honestly? Both are dramatic, but the complainant has a very genuine point here.",
-      'I was not there, but this sounds exactly like something the defendant would do.',
-      "I'm not taking sides, but if I had to... okay maybe I'm taking the complainant's side."
-    ]
   }
 ]
 
@@ -60,30 +40,21 @@ const DEFENDANT_WITNESSES = [
     name: 'Auto Chettan',
     role: 'ഓട്ടോ ചേട്ടൻ (Auto Driver)',
     tagline: 'Has an opinion on everything. Meter running.',
-    lines: [
-      'I dropped the defendant home that day, very innocent and calm person!',
-      'This is a simple misunderstanding. Compensation and apology. Case closed.',
-      'People these days fight over small things. The defendant is being framed.'
-    ]
   },
   {
     name: 'Canteen Chettan',
     role: 'കാന്റീൻ ചേട്ടൻ (Canteen)',
     tagline: 'Saw something. Burnt the dosa because of shouting.',
-    lines: [
-      'They were arguing near the counter, the defendant was completely polite!',
-      'Both of them owe me money for tea, but defendant paid half yesterday.',
-      'I only heard shouting. The defendant was just defending their lunch box.'
-    ]
   }
 ]
 
-const JURY_PANEL = [
-  { name: 'Anjali', emoji: '👩🏽' },
-  { name: 'Rohit', emoji: '👨🏽' },
-  { name: 'Meera', emoji: '👩🏻' },
-  { name: 'Vishnu', emoji: '👨🏻' },
-  { name: 'Kiran', emoji: '🧑🏽' },
+// ids must match the juror ids in supabase/functions/_shared/malayalam.ts
+const JURORS = [
+  { id: 'anjali', name: 'Anjali', tagline: 'Strict teacher · rules first' },
+  { id: 'rohit', name: 'Rohit', tagline: 'Engineer · show me proof' },
+  { id: 'meera', name: 'Meera', tagline: 'Soft heart · feels for the hurt' },
+  { id: 'vishnu', name: 'Vishnu', tagline: 'Chaya-kada regular · goes by vibes' },
+  { id: 'kiran', name: 'Kiran', tagline: 'Sarcastic senior · loves drama' },
 ]
 
 const LAW_BOOK: Record<string, { section: string; title: string; punishment: string }[]> = {
@@ -139,24 +110,28 @@ export default function Courtroom() {
   const [savingDefendantEvidence, setSavingDefendantEvidence] = useState(false)
 
   const [summoning, setSummoning] = useState<string | null>(null)
-  const [guiltyVotes, setGuiltyVotes] = useState(0)
-  const [notGuiltyVotes, setNotGuiltyVotes] = useState(0)
-  const [jurorVotes, setJurorVotes] = useState<Record<string, string>>({})
+
+  // AI jury: saved votes (from DB) + local loading/error state per juror
+  const [juryRows, setJuryRows] = useState<Record<string, any>>({})
+  const [juryLocal, setJuryLocal] = useState<Record<string, { status: 'loading' | 'error'; error?: string }>>({})
 
   const [verdict, setVerdict] = useState<any>(null)
   const [verdictLoading, setVerdictLoading] = useState(false)
+  const [verdictError, setVerdictError] = useState('')
   const [showVerdictSplash, setShowVerdictSplash] = useState(false)
   const [showLawBook, setShowLawBook] = useState(false)
   const splashTimeoutRef = useRef<any>(null)
   const proceedingsEndRef = useRef<HTMLDivElement>(null)
-  const [voterName, setVoterName] = useState('')
-  const [hasVoted, setHasVoted] = useState(false)
 
   const triggerVerdictSplash = () => {
     if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
     setShowVerdictSplash(true)
-    splashTimeoutRef.current = setTimeout(() => setShowVerdictSplash(false), 2000)
+    splashTimeoutRef.current = setTimeout(() => setShowVerdictSplash(false), 10000)
   }
+  const closeVerdictSplash = () => {
+  if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
+  setShowVerdictSplash(false)
+}
 
   useEffect(() => {
     return () => {
@@ -182,24 +157,16 @@ export default function Courtroom() {
     setWitnessList(data ?? [])
   }
 
-  const loadVotes = async (caseUuid: string) => {
+  const loadJury = async (caseUuid: string) => {
     const { data } = await supabase
-      .from('votes')
-      .select('vote, juror_name')
+      .from('jury_votes')
+      .select('*')
       .eq('case_id', caseUuid)
-    const votesByJuror: Record<string, string> = {}
-    ;(data ?? []).forEach((v) => {
-      if (v.juror_name) votesByJuror[v.juror_name] = v.vote
+    const rows: Record<string, any> = {}
+    ;(data ?? []).forEach((r) => {
+      rows[r.juror_id] = r
     })
-    setJurorVotes(votesByJuror)
-    setGuiltyVotes((data ?? []).filter(v => v.vote === 'guilty').length)
-    setNotGuiltyVotes((data ?? []).filter(v => v.vote === 'not_guilty').length)
-  }
-
-  const handleJurorVote = async (jurorName: string, vote: 'guilty' | 'not_guilty') => {
-    if (jurorVotes[jurorName]) return
-    await supabase.from('votes').insert({ case_id: caseData.id, vote, juror_name: jurorName })
-    await loadVotes(caseData.id)
+    setJuryRows(rows)
   }
 
   useEffect(() => {
@@ -229,16 +196,15 @@ export default function Courtroom() {
 
       setIsPlaintiff(Boolean(creatorToken && creatorToken === c.creator_token))
       setIsDefendant(Boolean((defToken && defToken === c.defendant_token) || (defName && defName === c.defendant)))
-      setHasVoted(localStorage.getItem(`case_${upperCode}_voted`) === 'true')
 
-      await Promise.all([loadEvidence(c.id), loadWitnesses(c.id), loadVotes(c.id)])
+      await Promise.all([loadEvidence(c.id), loadWitnesses(c.id), loadJury(c.id)])
       setLoading(false)
 
       channel = supabase
         .channel(`courtroom_live_${c.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'evidence', filter: `case_id=eq.${c.id}` }, () => loadEvidence(c.id))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'witness_statements', filter: `case_id=eq.${c.id}` }, () => loadWitnesses(c.id))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `case_id=eq.${c.id}` }, () => loadVotes(c.id))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'jury_votes', filter: `case_id=eq.${c.id}` }, () => loadJury(c.id))
         .subscribe()
     }
 
@@ -248,7 +214,7 @@ export default function Courtroom() {
       if (caseData?.id) {
         loadEvidence(caseData.id)
         loadWitnesses(caseData.id)
-        loadVotes(caseData.id)
+        loadJury(caseData.id)
       }
     }, 2000)
 
@@ -280,17 +246,17 @@ export default function Courtroom() {
     }
 
     const { error: insertErr } = await supabase.from('evidence').insert({
-    case_id: caseData.id,
-    description: plaintiffEvidenceText.trim() || null,
-    file_url: fileUrl,
-    submitted_by: 'plaintiff'
-   })
+      case_id: caseData.id,
+      description: plaintiffEvidenceText.trim() || null,
+      file_url: fileUrl,
+      submitted_by: 'plaintiff'
+    })
 
     if (insertErr) {
-    alert('Failed to add evidence: ' + insertErr.message)
-    setSavingPlaintiffEvidence(false)
-    return
-  }
+      alert('Failed to add evidence: ' + insertErr.message)
+      setSavingPlaintiffEvidence(false)
+      return
+    }
 
     setPlaintiffEvidenceText('')
     setPlaintiffEvidenceFile(null)
@@ -299,29 +265,30 @@ export default function Courtroom() {
   }
 
   const handleSaveDefenseStatement = async () => {
-  const text = defendantStatementInput.trim()
-  if (!text) return
-  setSavingDefenseStatement(true)
+    const text = defendantStatementInput.trim()
+    if (!text) return
+    setSavingDefenseStatement(true)
 
-  const existing = evidenceList.find(e => e.submitted_by === 'defendant_statement')
-  const { error } = existing
-    ? await supabase.from('evidence').update({ description: text }).eq('id', existing.id)
-    : await supabase.from('evidence').insert({
-        case_id: caseData.id,
-        description: text,
-        submitted_by: 'defendant_statement'
-      })
+    const existing = evidenceList.find(e => e.submitted_by === 'defendant_statement')
+    const { error } = existing
+      ? await supabase.from('evidence').update({ description: text }).eq('id', existing.id)
+      : await supabase.from('evidence').insert({
+          case_id: caseData.id,
+          description: text,
+          submitted_by: 'defendant_statement'
+        })
 
-  setSavingDefenseStatement(false)
-  if (error) {
-    alert('Could not save defense statement: ' + error.message)
-    return
+    setSavingDefenseStatement(false)
+    if (error) {
+      alert('Could not save defense statement: ' + error.message)
+      return
+    }
+
+    localStorage.setItem(`case_${caseId}_defendant_statement`, text)
+    await loadEvidence(caseData.id)
+    setDefendantStatementInput('')
   }
 
-  localStorage.setItem(`case_${caseId}_defendant_statement`, text)
-  await loadEvidence(caseData.id)
-  setDefendantStatementInput('')
-}
   const handleAddDefendantEvidence = async () => {
     if (!defendantEvidenceText.trim() && !defendantEvidenceFile) return
     setSavingDefendantEvidence(true)
@@ -340,16 +307,16 @@ export default function Courtroom() {
     }
 
     const { error: insertErr } = await supabase.from('evidence').insert({
-    case_id: caseData.id,
-    description: defendantEvidenceText.trim() || null,
-    file_url: fileUrl,
-    submitted_by: 'defendant'
-   })
-   if (insertErr) {
-    alert('Failed to add evidence: ' + insertErr.message)
-    setSavingDefendantEvidence(false)
-    return
-  }
+      case_id: caseData.id,
+      description: defendantEvidenceText.trim() || null,
+      file_url: fileUrl,
+      submitted_by: 'defendant'
+    })
+    if (insertErr) {
+      alert('Failed to add evidence: ' + insertErr.message)
+      setSavingDefendantEvidence(false)
+      return
+    }
 
     setDefendantEvidenceText('')
     setDefendantEvidenceFile(null)
@@ -357,122 +324,143 @@ export default function Courtroom() {
     setSavingDefendantEvidence(false)
   }
 
- const handleSummon = async (
-  persona: { name: string; role: string; tagline: string },
-  side: 'plaintiff' | 'defendant'
-) => {
-  setSummoning(persona.name)
-  try {
-    const evidenceNotes = evidenceList
-      .filter(e => e.description && e.submitted_by !== 'defendant_statement')
-      .map(e => `${e.submitted_by === 'defendant' ? 'പ്രതി' : 'വാദി'}: ${e.description}`)
+  const handleSummon = async (
+    persona: { name: string; role: string; tagline: string },
+    side: 'plaintiff' | 'defendant'
+  ) => {
+    setSummoning(persona.name)
+    try {
+      const evidenceNotes = evidenceList
+        .filter(e => e.description && e.submitted_by !== 'defendant_statement')
+        .map(e => `${e.submitted_by === 'defendant' ? 'പ്രതി' : 'വാദി'}: ${e.description}`)
 
-    const res = await fetch('https://fciltngewiorcbhaofsk.supabase.co/functions/v1/witness-statement', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer sb_publishable_obQzJtwbQ78yJ9aRBP8sLg_s-dMNd9b'
-      },
-      body: JSON.stringify({
-        witness_name: persona.name,
-        witness_personality: `${persona.role}. ${persona.tagline}`,
-        side,
-        complaint_text: caseData.complaint,
-        defense_text: currentDefenseStatement,
-        evidence: evidenceNotes
+      const res = await fetch(`${FN_URL}/witness-statement`, {
+        method: 'POST',
+        headers: FN_HEADERS,
+        body: JSON.stringify({
+          witness_name: persona.name,
+          witness_personality: `${persona.role}. ${persona.tagline}`,
+          side,
+          complaint_text: caseData.complaint,
+          defense_text: currentDefenseStatement,
+          evidence: evidenceNotes
+        })
       })
-    })
 
-    const body = await res.json().catch(() => ({}))
-    if (!res.ok || !body.statement) throw new Error(body.error || 'Witness could not be reached')
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || !body.statement) throw new Error(body.error || 'Witness could not be reached')
 
-    await supabase.from('witness_statements').insert({
-      case_id: caseData.id,
-      witness_name: `${persona.name} (${side === 'plaintiff' ? 'വാദി' : 'പ്രതി'})`,
-      statement: body.statement
-    })
-    await loadWitnesses(caseData.id)
-  } catch (err: any) {
-    alert('Failed to summon witness: ' + (err.message || 'unknown error'))
-  } finally {
-    setSummoning(null)
+      await supabase.from('witness_statements').insert({
+        case_id: caseData.id,
+        witness_name: `${persona.name} (${side === 'plaintiff' ? 'വാദി' : 'പ്രതി'})`,
+        statement: body.statement
+      })
+      await loadWitnesses(caseData.id)
+    } catch (err: any) {
+      alert('Failed to summon witness: ' + (err.message || 'unknown error'))
+    } finally {
+      setSummoning(null)
+    }
   }
-}
 
-  const handleCastVote = async (vote: 'guilty' | 'not_guilty') => {
-    if (hasVoted || isPlaintiff || isDefendant || !voterName.trim()) return
-    const name = voterName.trim()
-    await supabase.from('votes').insert({ case_id: caseData.id, vote, juror_name: name })
-    localStorage.setItem(`case_${caseId}_voted`, 'true')
-    setHasVoted(true)
-    await loadVotes(caseData.id)
-}
+  // Each juror is a separate, independent AI call (no juror sees another's vote)
+  const askJuror = async (jurorId: string) => {
+    if (!caseData) return
+    const juror = JURORS.find(j => j.id === jurorId)
+    if (!juror) return
+
+    setJuryLocal(p => ({ ...p, [jurorId]: { status: 'loading' } }))
+    try {
+      const res = await fetch(`${FN_URL}/jury-vote`, {
+        method: 'POST',
+        headers: FN_HEADERS,
+        body: JSON.stringify({
+          juror_id: jurorId,
+          plaintiff: caseData.plaintiff,
+          defendant: caseData.defendant || 'Unknown',
+          complaint_text: caseData.complaint,
+          defense_text: currentDefenseStatement,
+          plaintiff_evidence: plaintiffEvidence.map(e => e.description || 'Photo/Document evidence'),
+          defendant_evidence: defendantEvidence.map(e => e.description || 'Photo/Document counter-evidence'),
+          witnesses: witnessList.map(w => `${w.witness_name}: ${w.statement}`)
+        })
+      })
+
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || !body.vote || !body.reasoning) {
+        throw new Error(body.error || 'Juror could not be reached')
+      }
+
+      const { error } = await supabase.from('jury_votes').insert({
+        case_id: caseData.id,
+        juror_id: jurorId,
+        juror_name: juror.name,
+        vote: body.vote,
+        reasoning: body.reasoning
+      })
+      // 23505 = another browser already saved this juror's vote; that is fine
+      if (error && error.code !== '23505') throw new Error(error.message)
+
+      await loadJury(caseData.id)
+      setJuryLocal(p => {
+        const next = { ...p }
+        delete next[jurorId]
+        return next
+      })
+    } catch (err: any) {
+      setJuryLocal(p => ({ ...p, [jurorId]: { status: 'error', error: err.message || 'Something went wrong' } }))
+    }
+  }
+
+  const conveneJury = () => {
+    JURORS.forEach(j => {
+      if (juryRows[j.id] || juryLocal[j.id]?.status === 'loading') return
+      askJuror(j.id)
+    })
+  }
 
   const getVerdict = async () => {
     setVerdictLoading(true)
+    setVerdictError('')
 
-    const defendantStatement = evidenceList.find(e => e.submitted_by === 'defendant_statement')?.description
-      || localStorage.getItem(`case_${caseId}_defendant_statement`)
-      || 'No formal defense statement submitted.'
+    const defendantStatement = currentDefenseStatement || 'No formal defense statement submitted.'
 
-    const totalVotes = guiltyVotes + notGuiltyVotes
-    const guiltyPct = totalVotes > 0 ? Math.round((guiltyVotes / totalVotes) * 100) : 50
+    const doneJurors = jurorViews.filter(j => j.status === 'done')
+    const guiltyCount = doneJurors.filter(j => j.vote === 'guilty').length
+    const guiltyPct = doneJurors.length ? Math.round((guiltyCount / doneJurors.length) * 100) : 50
 
-    const plaintiffEvidence = evidenceList
-      .filter(e => e.submitted_by !== 'defendant' && e.submitted_by !== 'defendant_statement')
-      .map(e => e.description || 'Photo/Document Evidence')
-
-    const defendantEvidence = evidenceList
-      .filter(e => e.submitted_by === 'defendant')
-      .map(e => e.description || 'Counter-Evidence Photo/Doc')
+    const juryLines = doneJurors.map(
+      j => `[Juror ${j.name} voted ${j.vote === 'guilty' ? 'GUILTY' : 'NOT GUILTY'}]: ${j.reasoning}`
+    )
 
     try {
-      const res = await fetch('https://fciltngewiorcbhaofsk.supabase.co/functions/v1/judge-verdict', {
+      const res = await fetch(`${FN_URL}/judge-verdict`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer sb_publishable_obQzJtwbQ78yJ9aRBP8sLg_s-dMNd9b'
-        },
+        headers: FN_HEADERS,
         body: JSON.stringify({
           complaint: `[PLAINTIFF ${caseData.plaintiff} STATEMENT]: "${caseData.complaint}"\n[DEFENDANT ${caseData.defendant} DEFENSE]: "${defendantStatement}"`,
           plaintiff: caseData.plaintiff,
           defendant: caseData.defendant || 'Unknown',
           evidence: [
-            ...plaintiffEvidence.map(e => `[Complainant Evidence]: ${e}`),
-            ...defendantEvidence.map(e => `[Defendant Evidence]: ${e}`),
-            ...witnessList.map(w => `[Witness ${w.witness_name}]: ${w.statement}`)
+            ...plaintiffEvidence.map(e => `[Complainant Evidence]: ${e.description || 'Photo/Document Evidence'}`),
+            ...defendantEvidence.map(e => `[Defendant Evidence]: ${e.description || 'Counter-Evidence Photo/Doc'}`),
+            ...witnessList.map(w => `[Witness ${w.witness_name}]: ${w.statement}`),
+            `[JURY: ${guiltyCount} of ${doneJurors.length} independent jurors voted guilty]`,
+            ...juryLines
           ].join('\n') || 'Oral arguments only',
           juryGuiltyPercent: guiltyPct
         })
       })
 
-      if (res.ok) {
-        const v = await res.json()
-        if (v && v.verdict) {
-          setVerdict(v)
-          setVerdictLoading(false)
-          triggerVerdictSplash()
-          return
-        }
-      }
-      throw new Error('Fallback to local judge engine')
-    } catch (err) {
-      const isGuilty = guiltyPct >= 50
-      const localVerdict = {
-        verdict: isGuilty ? 'GUILTY (കുറ്റക്കാരൻ)' : 'NOT GUILTY (കുറ്റവിമുക്തൻ)',
-        reasoning: isGuilty
-          ? `Ende Ammachi! Having examined the complaint of ${caseData.plaintiff}, along with ${caseData.defendant}'s defense: "${defendantStatement.slice(0, 70)}...", and ${totalVotes} jury votes (${guiltyPct}% guilty), the court finds the accused fully guilty! Aiyyo, what kind of behavior is this!`
-          : `Aiyyo kashtam! After hearing both sides, ${caseData.defendant}'s reasonable defense, and the witnesses gossip, this court rules there is reasonable doubt. The complainant is making a mountain out of a molehill!`,
-        fictional_law: isGuilty
-          ? 'Section 420-P of the Kerala Daily Porotta & Friendship Sharing Act'
-          : 'Section 101-C of the Unnecessary House Drama Prevention Act',
-        punishment: isGuilty
-          ? `Accused (${caseData.defendant}) must apologize to ${caseData.plaintiff}, buy 2 hot parottas with beef/veg roast, and pour special chaya.`
-          : `Complainant (${caseData.plaintiff}) must buy ${caseData.defendant} a cold lime juice and promise not to drag silly matters to court again.`
-      }
-      setVerdict(localVerdict)
-      setVerdictLoading(false)
+      const v = await res.json().catch(() => ({}))
+      if (!res.ok || !v.verdict) throw new Error(v.error || 'The judge could not be reached')
+
+      setVerdict(v)
       triggerVerdictSplash()
+    } catch (err: any) {
+      setVerdictError(err.message || 'The judge could not be reached')
+    } finally {
+      setVerdictLoading(false)
     }
   }
 
@@ -492,6 +480,17 @@ export default function Courtroom() {
 
   const complainantWitnesses = witnessList.filter(w => w.witness_name?.includes('വാദി'))
   const defendantWitnesses = witnessList.filter(w => w.witness_name?.includes('പ്രതി'))
+
+  const jurorViews: JurorView[] = JURORS.map(j => {
+    const row = juryRows[j.id]
+    if (row) return { ...j, status: 'done', vote: row.vote, reasoning: row.reasoning }
+    const local = juryLocal[j.id]
+    if (local) return { ...j, status: local.status, error: local.error }
+    return { ...j, status: 'idle' }
+  })
+  const juryDoneCount = jurorViews.filter(j => j.status === 'done').length
+  const juryGuiltyCount = jurorViews.filter(j => j.status === 'done' && j.vote === 'guilty').length
+  const allJurorsDone = juryDoneCount === JURORS.length
 
   if (notFound) {
     return (
@@ -523,23 +522,49 @@ export default function Courtroom() {
     )
   }
 
-  const totalVotes = guiltyVotes + notGuiltyVotes
-  const guiltyPct = totalVotes > 0 ? Math.round((guiltyVotes / totalVotes) * 100) : 50
   const outcomeIsGuilty = verdict?.verdict?.toLowerCase().includes('guilty') && !verdict?.verdict?.toLowerCase().includes('not guilty')
   const laws = LAW_BOOK[caseData?.category] ?? LAW_BOOK.Roommate
   const filedDate = caseData?.created_at
     ? new Date(caseData.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : 'Recently'
+  const confettiColors = outcomeIsGuilty
+    ? ['#ef4444', '#f59e0b', '#fde68a']
+    : ['#22c55e', '#ffd778', '#ffffff']
+
+  const finalButtonLabel = verdictLoading
+    ? 'Judge is deliberating...'
+    : !currentDefenseStatement
+    ? "Waiting for defendant's statement"
+    : !allJurorsDone
+    ? `Waiting for jury (${juryDoneCount}/${JURORS.length})`
+    : verdictError
+    ? '↻ RETRY FINAL VERDICT 🔨'
+    : 'FINAL VERDICT 🔨'
 
   return (
     <div className="courtroom-viewport">
       {showVerdictSplash && verdict && (
         <div
           id="center-verdict-splash"
+          onClick={closeVerdictSplash}
           style={{ zIndex: 99999 }}
-          className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-md pointer-events-none transition-all duration-300"
+          // onClick={() => setShowVerdictSplash(false)}
+          className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-md cursor-pointer overflow-hidden transition-all duration-300"
         >
-          <div className={`relative p-6 sm:p-10 rounded-2xl border-4 text-center max-w-lg w-[92%] sm:w-full mx-4 shadow-2xl verdict-stamp-animation ${
+          {Array.from({ length: 28 }).map((_, i) => (
+            <span
+              key={i}
+              className="confetti-piece"
+              style={{
+                left: `${(i * 37) % 100}%`,
+                background: confettiColors[i % confettiColors.length],
+                animationDuration: `${2.4 + (i % 5) * 0.5}s`,
+                animationDelay: `${(i % 7) * 0.25}s`
+              }}
+            />
+          ))}
+
+          <div className={`relative p-6 sm:p-8 rounded-2xl border-4 text-center max-w-lg w-[92%] sm:w-full mx-4 shadow-2xl verdict-stamp-animation court-shake ${
             outcomeIsGuilty
               ? 'bg-gradient-to-b from-[#421010] via-[#250909] to-[#120303] border-red-500 shadow-[0_0_80px_rgba(239,68,68,0.85)]'
               : 'bg-gradient-to-b from-[#0e381b] via-[#082210] to-[#041208] border-green-500 shadow-[0_0_80px_rgba(34,197,94,0.85)]'
@@ -549,12 +574,10 @@ export default function Courtroom() {
             <div className="rivet-bl" />
             <div className="rivet-br" />
 
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="text-2xl">⚖️</span>
-              <span className="text-[11px] sm:text-xs font-mono font-bold tracking-[0.25em] uppercase text-[#ffd778]">
-                അന്തിമ വിധി പ്രഖ്യാപനം • FINAL VERDICT
-              </span>
-              <span className="text-2xl">⚖️</span>
+            <div className="gavel-slam text-5xl sm:text-6xl leading-none mb-1">🔨</div>
+
+            <div className="text-[11px] sm:text-xs font-mono font-bold tracking-[0.25em] uppercase text-[#ffd778]">
+              അന്തിമ വിധി പ്രഖ്യാപനം • FINAL VERDICT
             </div>
 
             <div className="py-2">
@@ -568,17 +591,25 @@ export default function Courtroom() {
               </div>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-white/20 text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5]">
-              <p>
-                പ്രതി: <span className="text-[#ffd778] font-black">{caseData.defendant || 'Defendant'}</span> {outcomeIsGuilty ? 'കുറ്റക്കാരനാണെന്ന് കോടതി കണ്ടെത്തി!' : 'കുറ്റവിമുക്തനാണെന്ന് കോടതി വിധിച്ചു!'}
+            <div className="reveal-up mt-2 pt-3 border-t border-white/20 space-y-2 text-left" style={{ animationDelay: '1.1s' }}>
+              <p className="text-[10px] font-mono text-white/60 uppercase tracking-wider text-center">
+                Jury: {juryGuiltyCount} guilty · {juryDoneCount - juryGuiltyCount} not guilty
               </p>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#ffd778]">⚖️ നിയമം (Law)</span>
+                <p className="text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5] leading-snug">{verdict.fictional_law}</p>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#ffd778]">🔨 ശിക്ഷ (Punishment)</span>
+                <p className="text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5] leading-snug">{verdict.punishment}</p>
+              </div>
             </div>
 
             <div className="mt-4 w-full bg-black/50 h-2 rounded-full overflow-hidden border border-white/20">
-              <div className={`h-full verdict-countdown-bar ${outcomeIsGuilty ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'bg-green-400 shadow-[0_0_10px_rgba(34,197,94,0.8)]'}`} />
+              <div className={`h-full verdict-progress ${outcomeIsGuilty ? 'bg-red-500' : 'bg-green-400'}`} />
             </div>
             <div className="text-[10px] font-mono text-white/60 tracking-wider uppercase mt-1">
-              Displaying for 2s • 2 സെക്കൻഡ്
+              Tap anywhere to close
             </div>
           </div>
         </div>
@@ -602,46 +633,46 @@ export default function Courtroom() {
       />
 
       <header className="courtroom-header">
-  <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-    <Seal size={30} />
-    <span className="font-display font-black text-base text-[#ffdf79] tracking-wider drop-shadow-sm">
-      നാട്ടിലെ COURT
-    </span>
-  </div>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+          <Seal size={30} />
+          <span className="font-display font-black text-base text-[#ffdf79] tracking-wider drop-shadow-sm">
+            നാട്ടിലെ COURT
+          </span>
+        </div>
 
-  <nav className="flex items-center gap-1">
-    <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase bg-[#5a381e] text-[#ffdf79] border border-[#e0b95c] flex items-center gap-1.5">
-      <Scale className="w-3.5 h-3.5" /> Courtroom
-    </span>
-    <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/50 flex items-center gap-1.5 cursor-not-allowed">
-      <FileText className="w-3.5 h-3.5" /> Case File
-    </span>
-    <button
-      onClick={() => setShowLawBook(!showLawBook)}
-      className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/70 hover:text-[#ffdf79] flex items-center gap-1.5 cursor-pointer transition"
-    >
-      <BookOpen className="w-3.5 h-3.5" /> Law Book
-    </button>
-    <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/50 flex items-center gap-1.5 cursor-not-allowed">
-      <Users className="w-3.5 h-3.5" /> Leaderboard
-    </span>
-  </nav>
+        <nav className="flex items-center gap-1">
+          <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase bg-[#5a381e] text-[#ffdf79] border border-[#e0b95c] flex items-center gap-1.5">
+            <Scale className="w-3.5 h-3.5" /> Courtroom
+          </span>
+          <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/50 flex items-center gap-1.5 cursor-not-allowed">
+            <FileText className="w-3.5 h-3.5" /> Case File
+          </span>
+          <button
+            onClick={() => setShowLawBook(!showLawBook)}
+            className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/70 hover:text-[#ffdf79] flex items-center gap-1.5 cursor-pointer transition"
+          >
+            <BookOpen className="w-3.5 h-3.5" /> Law Book
+          </button>
+          <span className="px-3 py-1.5 rounded text-xs font-display font-bold uppercase text-white/50 flex items-center gap-1.5 cursor-not-allowed">
+            <Users className="w-3.5 h-3.5" /> Leaderboard
+          </span>
+        </nav>
 
-  <div className="flex items-center gap-2 bg-[#4a2e18] border-2 border-[#e0b95c]/80 px-3.5 py-1 rounded shadow-sm text-xs">
-    <span className="font-bold text-[#ffdf79]">DOCKET:</span>
-    <span className="font-mono font-black text-white tracking-widest text-sm">#{caseData.case_code}</span>
-    <span className="text-[#e0b95c]/50">|</span>
-    <span className="text-white/90 font-mono text-[11px]">{filedDate}</span>
-  </div>
+        <div className="flex items-center gap-2 bg-[#4a2e18] border-2 border-[#e0b95c]/80 px-3.5 py-1 rounded shadow-sm text-xs">
+          <span className="font-bold text-[#ffdf79]">DOCKET:</span>
+          <span className="font-mono font-black text-white tracking-widest text-sm">#{caseData.case_code}</span>
+          <span className="text-[#e0b95c]/50">|</span>
+          <span className="text-white/90 font-mono text-[11px]">{filedDate}</span>
+        </div>
 
-  <button
-    onClick={() => navigate('/')}
-    className="px-3 py-1 rounded text-xs font-display font-bold uppercase bg-[#4a1c14] hover:bg-[#5f241a] text-white border border-red-500/50 transition flex items-center gap-1 cursor-pointer shadow-sm"
-  >
-    <LogOut className="w-3.5 h-3.5" />
-    <span>Exit</span>
-  </button>
-</header>
+        <button
+          onClick={() => navigate('/')}
+          className="px-3 py-1 rounded text-xs font-display font-bold uppercase bg-[#4a1c14] hover:bg-[#5f241a] text-white border border-red-500/50 transition flex items-center gap-1 cursor-pointer shadow-sm"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Exit</span>
+        </button>
+      </header>
 
       <main className="courtroom-arena">
 
@@ -652,8 +683,8 @@ export default function Courtroom() {
           <div className="rivet-br" />
 
           <div className="flex-shrink-0 flex items-center justify-between border-b-2 border-[#a67432] pb-1.5 mb-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-lg">⚖️</span>
+            <div className="flex items-center gap-2">
+              <Avatar spec={avatarFromName(caseData.plaintiff, 'plaintiff')} size={44} label={caseData.plaintiff} />
               <div>
                 <h2 className="text-[11px] font-display font-black uppercase tracking-wider text-[#ffdf79]">
                   വാദി (COMPLAINANT)
@@ -672,7 +703,7 @@ export default function Courtroom() {
 
           <div className="flex-shrink-0 mb-2">
             <span className="text-[10px] uppercase font-bold text-[#ffdf79] block mb-1">
-              കുറ്റപത്രം (COMPLAINT STATEMENT)
+              പരാതി (COMPLAINT STATEMENT)
             </span>
             <div className="bg-[#fffdf5] text-[#241206] p-2.5 rounded shadow-md border border-[#dfcca0] font-malayalam text-xs font-bold italic max-h-16 overflow-y-auto leading-relaxed custom-scroll">
               "{caseData.complaint}"
@@ -688,27 +719,27 @@ export default function Courtroom() {
             </div>
 
             <div className="flex-1 min-h-0 overflow-x-auto flex gap-2 pb-1 bg-[#3a2213] p-2 rounded border border-[#a67432]/70 custom-scroll">
-  {plaintiffEvidence.length === 0 ? (
-    <p className="text-xs text-white/50 italic p-1">No evidence submitted yet.</p>
-  ) : (
-    plaintiffEvidence.map((e, i) => (
-      <div
-        key={e.id}
-        className="flex-shrink-0 w-24 bg-[#fffdf5] p-1.5 pb-2 rounded shadow-lg border border-black/10"
-        style={{ transform: `rotate(${i % 2 === 0 ? -2 : 2}deg)` }}
-      >
-        {e.file_url ? (
-          <img src={e.file_url} alt="evidence" className="w-full h-16 object-cover rounded-sm" />
-        ) : (
-          <div className="w-full h-16 bg-[#e8dfc8] rounded-sm flex items-center justify-center text-lg">📄</div>
-        )}
-        <p className="text-[9px] text-[#241206] font-body mt-1 text-center truncate">
-          {e.description || 'Photo/Document'}
-        </p>
-      </div>
-    ))
-  )}
-</div>
+              {plaintiffEvidence.length === 0 ? (
+                <p className="text-xs text-white/50 italic p-1">No evidence submitted yet.</p>
+              ) : (
+                plaintiffEvidence.map((e, i) => (
+                  <div
+                    key={e.id}
+                    className="flex-shrink-0 w-24 bg-[#fffdf5] p-1.5 pb-2 rounded shadow-lg border border-black/10"
+                    style={{ transform: `rotate(${i % 2 === 0 ? -2 : 2}deg)` }}
+                  >
+                    {e.file_url ? (
+                      <img src={e.file_url} alt="evidence" className="w-full h-16 object-cover rounded-sm" />
+                    ) : (
+                      <div className="w-full h-16 bg-[#e8dfc8] rounded-sm flex items-center justify-center text-lg">📄</div>
+                    )}
+                    <p className="text-[9px] text-[#241206] font-body mt-1 text-center truncate">
+                      {e.description || 'Photo/Document'}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
 
             <div className="flex-shrink-0 pt-2 space-y-1">
               <div className="flex gap-1.5">
@@ -744,33 +775,34 @@ export default function Courtroom() {
               🎙️ സാക്ഷികൾ (WITNESSES)
             </span>
             <div className="space-y-1.5 mb-1.5">
-  {COMPLAINANT_WITNESSES.map((w) => (
-    <div key={w.name} className="flex items-center justify-between bg-[#4a2e1a] border border-[#a67432] rounded p-1.5">
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="w-7 h-7 rounded-full bg-[#ffd778]/20 border border-[#ffd778]/50 flex items-center justify-center text-sm flex-shrink-0">
-          👤
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-bold text-white truncate">{w.name}</p>
-          <p className="text-[9px] text-white/50 truncate">{w.tagline}</p>
-        </div>
-      </div>
-      <button
-        onClick={() => handleSummon(w, 'plaintiff')}
-        disabled={summoning === w.name}
-        className="text-[10px] font-bold px-2 py-1 rounded bg-[#5a381e] hover:bg-[#ffd778] hover:text-[#1c0e04] text-[#ffdf79] border border-[#e0b95c]/60 flex-shrink-0 cursor-pointer transition disabled:opacity-50"
-      >
-        {summoning === w.name ? '...' : 'Summon'}
-      </button>
-    </div>
-  ))}
-</div>
+              {COMPLAINANT_WITNESSES.map((w) => (
+                <div key={w.name} className="flex items-center justify-between bg-[#4a2e1a] border border-[#a67432] rounded p-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar spec={specFor(w.name)} size={32} label={w.name} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">{w.name}</p>
+                      <p className="text-[9px] text-white/50 truncate">{w.tagline}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSummon(w, 'plaintiff')}
+                    disabled={summoning === w.name}
+                    className="text-[10px] font-bold px-2 py-1 rounded bg-[#5a381e] hover:bg-[#ffd778] hover:text-[#1c0e04] text-[#ffdf79] border border-[#e0b95c]/60 flex-shrink-0 cursor-pointer transition disabled:opacity-50"
+                  >
+                    {summoning === w.name ? '...' : 'Summon'}
+                  </button>
+                </div>
+              ))}
+            </div>
 
             {complainantWitnesses.length > 0 && (
-              <div className="max-h-16 overflow-y-auto space-y-1 bg-[#fffdf5] p-2 rounded border border-[#dfcca0] text-xs text-[#241206] font-malayalam custom-scroll font-semibold">
+              <div className="max-h-20 overflow-y-auto space-y-1.5 bg-[#fffdf5] p-2 rounded border border-[#dfcca0] text-xs text-[#241206] font-malayalam custom-scroll font-semibold">
                 {complainantWitnesses.map((cw) => (
-                  <div key={cw.id} className="leading-snug">
-                    <strong className="text-[#7a2020]">{cw.witness_name}:</strong> {cw.statement}
+                  <div key={cw.id} className="flex gap-1.5 leading-snug">
+                    <Avatar spec={specFor(cw.witness_name)} size={22} label={cw.witness_name} />
+                    <div className="min-w-0">
+                      <strong className="text-[#7a2020]">{cw.witness_name}:</strong> {cw.statement}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -810,158 +842,105 @@ export default function Courtroom() {
 
             <div className="flex-1 min-h-0 bg-[#fffdf5] text-[#241206] p-2.5 rounded-panel border-2 border-[#dfcca0] overflow-y-auto space-y-2 font-mono text-xs shadow-inner custom-scroll">
               <div className="pb-1.5 border-b border-[#7a2020]/20">
-                <span className="font-black text-[#7a2020] block">⚖️ Hon. Judge:</span>
+                <span className="font-black text-[#7a2020] flex items-center gap-1.5">
+                  <Avatar spec={specFor('Judge')} size={18} label="Judge" /> Hon. Judge:
+                </span>
                 <span className="font-semibold">"Court is now in session for Case #{caseData.case_code}. Let both parties present their arguments."</span>
               </div>
               <div className="pb-1.5 border-b border-[#7a2020]/20">
-                <span className="font-black text-[#7a2020] block">🙋 {caseData.plaintiff} (Complaint):</span>
+                <span className="font-black text-[#7a2020] flex items-center gap-1.5">
+                  <Avatar spec={avatarFromName(caseData.plaintiff, 'plaintiff')} size={18} label={caseData.plaintiff} /> {caseData.plaintiff} (Complaint):
+                </span>
                 <span className="font-malayalam font-bold text-[#1a0c04]">"{caseData.complaint}"</span>
               </div>
               {currentDefenseStatement && (
                 <div className="pb-1.5 border-b border-[#7a2020]/20 bg-[#f7efdc] p-1.5 rounded">
-                  <span className="font-black text-[#7a2020] block">🙎 {caseData.defendant} (Defense):</span>
+                  <span className="font-black text-[#7a2020] flex items-center gap-1.5">
+                    <Avatar spec={avatarFromName(caseData.defendant || 'Defendant', 'defendant')} size={18} label={caseData.defendant} /> {caseData.defendant} (Defense):
+                  </span>
                   <span className="font-malayalam font-bold text-[#1a0c04]">"{currentDefenseStatement}"</span>
                 </div>
               )}
               {witnessList.map((w) => (
                 <div key={w.id} className="pb-1.5 border-b border-[#7a2020]/20 animate-fade-in">
-                  <span className="font-black text-[#7a2020] block">🎙️ {w.witness_name}:</span>
+                  <span className="font-black text-[#7a2020] flex items-center gap-1.5">
+                    <Avatar spec={specFor(w.witness_name)} size={18} label={w.witness_name} /> {w.witness_name}:
+                  </span>
                   <span className="font-malayalam font-semibold">"{w.statement}"</span>
                 </div>
               ))}
-              {evidenceList.map((e) => (
-                <div key={e.id} className="text-[11px] text-[#5c1f1f] font-semibold italic animate-fade-in">
-                  📎 Evidence ({e.submitted_by === 'defendant' ? 'Defendant' : 'Plaintiff'}): "{e.description || 'Photo/Document'}"
-                </div>
-              ))}
+              {evidenceList
+                .filter(e => e.submitted_by !== 'defendant_statement')
+                .map((e) => (
+                  <div key={e.id} className="text-[11px] text-[#5c1f1f] font-semibold italic animate-fade-in">
+                    📎 Evidence ({e.submitted_by === 'defendant' ? 'Defendant' : 'Plaintiff'}): "{e.description || 'Photo/Document'}"
+                  </div>
+                ))}
               <div ref={proceedingsEndRef} />
             </div>
           </div>
 
           {verdict && (
-  <div
-    onClick={triggerVerdictSplash}
-    className="flex-shrink-0 animate-scale-in mb-2 cursor-pointer hover:brightness-105 active:scale-98 transition"
-  >
-    <div className="bg-[#fffdf5] rounded-lg p-4 border-2 border-[#dfcca0] shadow-xl">
-      <div className="grid grid-cols-2 gap-4 divide-x divide-[#dfcca0]">
-        <div>
-          <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
-            <Scale className="w-3 h-3" /> Verdict
-          </span>
-          <div
-            className={`inline-block px-3 py-1 rounded border-2 font-display font-black text-lg uppercase tracking-wider ${
-              outcomeIsGuilty
-                ? 'border-red-600 text-red-700 bg-red-50'
-                : 'border-green-600 text-green-700 bg-green-50'
-            }`}
-            style={{ transform: 'rotate(-3deg)' }}
-          >
-            {outcomeIsGuilty ? 'GUILTY' : 'NOT GUILTY'}
-          </div>
-        </div>
-        <div className="pl-4">
-          <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
-            <Gavel className="w-3 h-3" /> Punishment
-          </span>
-          <p className="text-xs text-[#241206] font-body font-semibold leading-snug">
-            {verdict.punishment}
-          </p>
-        </div>
-      </div>
-      <p className="text-xs text-[#5c1f1f] font-body italic mt-3 pt-3 border-t border-[#dfcca0]">
-        "{verdict.reasoning}" — Hon. Naatile Judge
-      </p>
-      <p className="text-[10px] text-[#7a2020]/50 font-mono mt-1">{verdict.fictional_law}</p>
-    </div>
-  </div>
-)}
-          <div className="flex-shrink-0 bg-[#3a2213] p-2.5 rounded border-2 border-[#e0b95c]/60 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs uppercase font-extrabold text-[#ffdf79] flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5" />
-                <span>ജൂറി പാനൽ (JURY) — {totalVotes} Votes</span>
-              </span>
-              <div className="flex gap-3 text-xs font-mono font-black">
-                <span className="text-red-400">Guilty: {guiltyPct}%</span>
-                <span className="text-green-400">Not Guilty: {100 - guiltyPct}%</span>
+            <div
+              onClick={triggerVerdictSplash}
+              className="flex-shrink-0 animate-scale-in mb-2 cursor-pointer hover:brightness-105 active:scale-98 transition"
+            >
+              <div className="bg-[#fffdf5] rounded-lg p-4 border-2 border-[#dfcca0] shadow-xl">
+                <div className="grid grid-cols-2 gap-4 divide-x divide-[#dfcca0]">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
+                      <Scale className="w-3 h-3" /> Verdict
+                    </span>
+                    <div
+                      className={`inline-block px-3 py-1 rounded border-2 font-display font-black text-lg uppercase tracking-wider ${
+                        outcomeIsGuilty
+                          ? 'border-red-600 text-red-700 bg-red-50'
+                          : 'border-green-600 text-green-700 bg-green-50'
+                      }`}
+                      style={{ transform: 'rotate(-3deg)' }}
+                    >
+                      {outcomeIsGuilty ? 'GUILTY' : 'NOT GUILTY'}
+                    </div>
+                  </div>
+                  <div className="pl-4">
+                    <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
+                      <Gavel className="w-3 h-3" /> Punishment
+                    </span>
+                    <p className="text-xs text-[#241206] font-malayalam font-semibold leading-snug">
+                      {verdict.punishment}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-[#5c1f1f] font-malayalam italic mt-3 pt-3 border-t border-[#dfcca0]">
+                  "{verdict.reasoning}" — Hon. Naatile Judge
+                </p>
+                <p className="text-[10px] text-[#7a2020]/60 font-malayalam mt-1">{verdict.fictional_law}</p>
               </div>
             </div>
+          )}
 
-            <div className="w-full h-2 bg-[#1f1106] rounded-full overflow-hidden flex border border-[#e0b95c]/40">
-              <div style={{ width: `${guiltyPct}%` }} className="bg-red-600 transition-all duration-500" />
-              <div style={{ width: `${100 - guiltyPct}%` }} className="bg-green-600 transition-all duration-500" />
-            </div>
+          <div className="flex-shrink-0 bg-[#3a2213] p-2.5 rounded border-2 border-[#e0b95c]/60 space-y-1.5">
+            <JuryPanel
+              jurors={jurorViews}
+              canConvene={Boolean(currentDefenseStatement)}
+              conveneHint="Waiting for defendant's statement"
+              onConvene={conveneJury}
+              onRetry={askJuror}
+            />
 
-            {Object.keys(jurorVotes).length > 0 && (
-  <div className="flex flex-wrap gap-1.5 pt-1">
-    {Object.entries(jurorVotes).map(([name, vote]) => (
-      <div
-        key={name}
-        className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold border ${
-          vote === 'guilty' ? 'bg-red-900/40 border-red-500 text-red-200' : 'bg-green-900/40 border-green-500 text-green-200'
-        }`}
-      >
-        <span>{name}</span>
-        <span>{vote === 'guilty' ? 'G' : 'NG'}</span>
-      </div>
-    ))}
-  </div>
-)}
-
-{!isPlaintiff && !isDefendant && !hasVoted && (
-  <div className="pt-2 space-y-1.5">
-    <input
-      type="text"
-      placeholder="Your name (juror)"
-      value={voterName}
-      onChange={(e) => setVoterName(e.target.value)}
-      className="w-full bg-[#2e190d] border border-[#a67432] rounded px-2 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#ffd778]"
-    />
-    <div className="flex gap-1.5">
-      <button
-        onClick={() => handleCastVote('guilty')}
-        disabled={!voterName.trim()}
-        className="flex-1 bg-red-800 hover:bg-red-700 text-white text-xs font-bold py-1.5 rounded disabled:opacity-40 cursor-pointer"
-      >
-        GUILTY
-      </button>
-      <button
-        onClick={() => handleCastVote('not_guilty')}
-        disabled={!voterName.trim()}
-        className="flex-1 bg-green-800 hover:bg-green-700 text-white text-xs font-bold py-1.5 rounded disabled:opacity-40 cursor-pointer"
-      >
-        NOT GUILTY
-      </button>
-    </div>
-  </div>
-)}
-
-{hasVoted && (
-  <p className="text-[10px] text-[#ffd778] text-center pt-1">✓ Your vote has been recorded.</p>
-)}
-
-{(isPlaintiff || isDefendant) && (
-  <p className="text-[10px] text-white/50 text-center pt-1 italic">As a party to this case, you cannot vote.</p>
-)}
+            {verdictError && (
+              <p className="text-[11px] text-red-300 text-center">{verdictError}</p>
+            )}
 
             <button
-  id="final-verdict-btn"
-  onClick={handleFinalVerdictClick}
-  disabled={verdictLoading || totalVotes === 0 || !currentDefenseStatement}
-  className="w-full mt-2 py-2 rounded font-display font-black text-sm uppercase tracking-wider bg-gradient-to-b from-[#ffd778] via-[#e4b248] to-[#be8624] text-[#1c0e04] border-2 border-white/60 hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
->
-  <Gavel className="w-4 h-4" />
-  <span>
-    {verdictLoading
-      ? 'Deliberating...'
-      : totalVotes === 0
-      ? 'Waiting for jury votes'
-      : !currentDefenseStatement
-      ? "Waiting for defendant's statement"
-      : 'FINAL VERDICT 🔨'}
-  </span>
-</button>
+              id="final-verdict-btn"
+              onClick={handleFinalVerdictClick}
+              disabled={verdictLoading || !allJurorsDone || !currentDefenseStatement}
+              className="w-full mt-1 py-2 rounded font-display font-black text-sm uppercase tracking-wider bg-gradient-to-b from-[#ffd778] via-[#e4b248] to-[#be8624] text-[#1c0e04] border-2 border-white/60 hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
+            >
+              <Gavel className="w-4 h-4" />
+              <span>{finalButtonLabel}</span>
+            </button>
           </div>
         </section>
 
@@ -972,8 +951,8 @@ export default function Courtroom() {
           <div className="rivet-br" />
 
           <div className="flex-shrink-0 flex items-center justify-between border-b-2 border-[#a67432] pb-1.5 mb-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-lg">📜</span>
+            <div className="flex items-center gap-2">
+              <Avatar spec={avatarFromName(caseData.defendant || 'Defendant', 'defendant')} size={44} label={caseData.defendant || 'Defendant'} />
               <div>
                 <h2 className="text-[11px] font-display font-black uppercase tracking-wider text-[#ffdf79]">
                   പ്രതി (DEFENDANT)
@@ -1005,22 +984,22 @@ export default function Courtroom() {
             )}
 
             <div className="mt-1.5 flex gap-1.5">
-  <input
-    type="text"
-    placeholder="Enter defense statement..."
-    value={defendantStatementInput}
-    onChange={(e) => setDefendantStatementInput(e.target.value)}
-    onKeyDown={(e) => e.key === 'Enter' && handleSaveDefenseStatement()}
-    className="flex-1 bg-[#2e190d] border border-[#a67432] rounded px-2 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#ffd778]"
-  />
-  <button
-    onClick={handleSaveDefenseStatement}
-    disabled={savingDefenseStatement}
-    className="bg-gradient-to-b from-[#ffd778] to-[#be8624] text-[#1c0e04] text-xs font-black px-3 py-1 rounded cursor-pointer disabled:opacity-40 shadow-sm"
-  >
-    {savingDefenseStatement ? '...' : 'Submit'}
-  </button>
-</div>
+              <input
+                type="text"
+                placeholder="Enter defense statement..."
+                value={defendantStatementInput}
+                onChange={(e) => setDefendantStatementInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveDefenseStatement()}
+                className="flex-1 bg-[#2e190d] border border-[#a67432] rounded px-2 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#ffd778]"
+              />
+              <button
+                onClick={handleSaveDefenseStatement}
+                disabled={savingDefenseStatement}
+                className="bg-gradient-to-b from-[#ffd778] to-[#be8624] text-[#1c0e04] text-xs font-black px-3 py-1 rounded cursor-pointer disabled:opacity-40 shadow-sm"
+              >
+                {savingDefenseStatement ? '...' : 'Submit'}
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col mb-2 overflow-hidden">
@@ -1085,20 +1064,26 @@ export default function Courtroom() {
                   key={w.name}
                   onClick={() => handleSummon(w, 'defendant')}
                   disabled={summoning === w.name}
-                  className="p-1.5 text-xs font-bold rounded bg-[#4a2e1a] hover:bg-[#ffd778] hover:text-[#1c0e04] text-white border border-[#a67432] transition truncate cursor-pointer text-left flex items-center justify-between shadow-sm"
+                  className="p-1.5 text-xs font-bold rounded bg-[#4a2e1a] hover:bg-[#ffd778] hover:text-[#1c0e04] text-white border border-[#a67432] transition cursor-pointer text-left flex items-center justify-between gap-1 shadow-sm disabled:opacity-60"
                   title={w.role}
                 >
-                  <span className="truncate">{w.name}</span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Avatar spec={specFor(w.name)} size={24} label={w.name} />
+                    <span className="truncate">{summoning === w.name ? '...' : w.name}</span>
+                  </span>
                   <span className="text-xs">📢</span>
                 </button>
               ))}
             </div>
 
             {defendantWitnesses.length > 0 && (
-              <div className="max-h-16 overflow-y-auto space-y-1 bg-[#fffdf5] p-2 rounded border border-[#dfcca0] text-xs text-[#241206] font-malayalam custom-scroll font-semibold">
+              <div className="max-h-20 overflow-y-auto space-y-1.5 bg-[#fffdf5] p-2 rounded border border-[#dfcca0] text-xs text-[#241206] font-malayalam custom-scroll font-semibold">
                 {defendantWitnesses.map((dw) => (
-                  <div key={dw.id} className="leading-snug">
-                    <strong className="text-[#7a2020]">{dw.witness_name}:</strong> {dw.statement}
+                  <div key={dw.id} className="flex gap-1.5 leading-snug">
+                    <Avatar spec={specFor(dw.witness_name)} size={22} label={dw.witness_name} />
+                    <div className="min-w-0">
+                      <strong className="text-[#7a2020]">{dw.witness_name}:</strong> {dw.statement}
+                    </div>
                   </div>
                 ))}
               </div>

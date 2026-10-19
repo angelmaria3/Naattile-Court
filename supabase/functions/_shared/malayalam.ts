@@ -1,4 +1,5 @@
-export const MODEL = "claude-sonnet-5-5";
+export const CLAUDE_MODEL = "claude-sonnet-5-5";
+export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") ?? "openai/gpt-oss-120b";
 
 const RULES = `
 You write in natural, grammatically correct spoken Kerala Malayalam (Malayalam script only).
@@ -55,31 +56,83 @@ export function looksValid(text: string): boolean {
   return letters.length > 0 && ml.length / letters.length >= 0.6;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Uses Claude if ANTHROPIC_API_KEY is set, otherwise Groq (GROQ_API_KEY).
+// Keys come from Supabase secrets, never from this file.
+export async function callLLM(system: string, user: string, temperature: number): Promise<string> {
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+
+  if (anthropicKey) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 800,
+        temperature,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(`LLM API ${res.status}: ${data?.error?.message ?? JSON.stringify(data)}`);
+    return data.content?.[0]?.text ?? "";
+  }
+
+  const body: Record<string, unknown> = {
+    model: GROQ_MODEL,
+    temperature,
+    max_tokens: 1500,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (GROQ_MODEL.includes("gpt-oss")) body.reasoning_effort = "low";
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("GROQ_API_KEY")}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`LLM API ${res.status}: ${data?.error?.message ?? JSON.stringify(data)}`);
+  return data.choices?.[0]?.message?.content ?? "";
+}
+
 export async function askJSON(system: string, user: string, validate: (o: any) => boolean, tries = 3) {
+  if (!Deno.env.get("ANTHROPIC_API_KEY") && !Deno.env.get("GROQ_API_KEY")) {
+    throw new Error("No LLM key set. Set GROQ_API_KEY or ANTHROPIC_API_KEY as a Supabase secret.");
+  }
+
+  let apiError: string | null = null;
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 800,
-          temperature: i === 0 ? 0.8 : 0.5,
-          system,
-          messages: [{ role: "user", content: user }],
-        }),
-      });
-      const data = await res.json();
-      const raw = data.content?.[0]?.text?.replace(/```json|```/g, "").trim();
-      const obj = JSON.parse(raw);
+      const raw = (await callLLM(system, user, i === 0 ? 0.8 : 0.5))
+        .replace(/<think>[\s\S]*?<\/think>/g, "");
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      const obj = JSON.parse(raw.slice(start, end + 1));
+      apiError = null;
       if (validate(obj)) return obj;
-    } catch (_) { /* retry */ }
+    } catch (e) {
+      const msg = String(e instanceof Error ? e.message : e);
+      if (msg.startsWith("LLM API")) {
+        apiError = msg; // real API problem (bad key, rate limit), not bad output
+        await sleep(1500 * (i + 1)); // back off before retrying
+      }
+    }
   }
-  return null; // caller uses a hand-written fallback
+  if (apiError) throw new Error(apiError); // surfaces in the UI instead of a silent fallback
+  return null;
 }
 
 export const FALLBACK_WITNESS: Record<string, string> = {
@@ -88,3 +141,28 @@ export const FALLBACK_WITNESS: Record<string, string> = {
   "Canteen Chettan": "ചായ കുടിക്കാൻ വന്നപ്പോൾ ഞാൻ എല്ലാം കേട്ടു. ചായയുടെ പൈസ ഇതുവരെ ആരും തന്നിട്ടില്ല, അത് വേറെ കേസാണ്!",
   "College Friend": "ഞാൻ ന്യൂട്രലാണ് ബ്രോ, പക്ഷേ പരാതി കൊടുത്ത ആളുടെ ഭാഗത്താണ് ന്യായം എന്നാണ് എന്റെ തോന്നൽ. സീൻ ക്ലിയറാണ്!",
 };
+
+// ---------- Jury ----------
+export const JURORS: Record<string, string> = {
+  anjali: `Anjali: strict school teacher. Believes in rules, fairness and proper proof. Has no patience for excuses.`,
+  rohit: `Rohit: software engineer. Logical, wants evidence, allergic to gossip and hearsay.`,
+  meera: `Meera: soft-hearted nurse. Sympathises with whoever seems hurt, but still checks the facts.`,
+  vishnu: `Vishnu: chaya-kada regular. Judges by common sense, gossip and vibes.`,
+  kiran: `Kiran: sarcastic college senior. Loves drama, cracks jokes, but still decides honestly.`,
+};
+export const JUROR_IDS = Object.keys(JURORS);
+
+export function jurorSystem(id: string) {
+  return `${RULES}
+You are a juror in a mock Kerala court that settles silly everyday disputes. Your character: ${JURORS[id]}
+Decide on your own, using only the case facts you are given: complaint, defense, evidence descriptions and witness statements. You have not heard any other juror.
+- Witnesses are comic characters; treat what they say as colourful, weak evidence.
+- Be fair. If the defense is missing or the complaint is flimsy, say so. Do not always vote the same way.
+- "GUILTY" means the defendant is at fault; "NOT GUILTY" means they are not.
+Return JSON: {"vote": "GUILTY" or "NOT GUILTY", "reasoning": "..."}
+- vote: English capitals only.
+- reasoning: Malayalam, one or two sentences, at most 30 words, in your own voice, mentioning one specific detail from this case.
+The examples show tone only. Never copy them.
+Example 1: {"vote":"GUILTY","reasoning":"പേന എടുക്കുന്നത് ആരും കണ്ടില്ല, പക്ഷേ പോക്കറ്റിൽ ഇരിക്കുന്നത് കണ്ടെന്ന സാക്ഷിമൊഴി എനിക്ക് വിശ്വസിക്കാം. പ്രതി പേന തിരിച്ചു കൊടുക്കട്ടെ!"}
+Example 2: {"vote":"NOT GUILTY","reasoning":"ഒരു പേനയ്ക്ക് വേണ്ടി കോടതിയിൽ വരണോ? തെളിവൊന്നും കണ്ടില്ല, അതുകൊണ്ട് സംശയത്തിന്റെ ആനുകൂല്യം പ്രതിക്ക്!"}`;
+}
