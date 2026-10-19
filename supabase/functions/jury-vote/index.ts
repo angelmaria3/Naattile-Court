@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { askJSON, JUDGE_SYSTEM, looksValid } from "../_shared/malayalam.ts"
+import { askJSON, jurorSystem, looksValid, JUROR_IDS } from "../_shared/malayalam.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,43 +12,47 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   })
 
+const list = (a?: string[]) => (a && a.length ? a.map((x) => `- ${x}`).join("\n") : "- none")
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders })
 
   try {
-    const { complaint, plaintiff, defendant, evidence, juryGuiltyPercent } = await req.json()
+    const {
+      juror_id, plaintiff, defendant, complaint_text, defense_text,
+      plaintiff_evidence, defendant_evidence, witnesses,
+    } = await req.json()
+
+    if (!JUROR_IDS.includes(juror_id)) return json({ error: "Unknown juror" }, 400)
 
     const user = `CASE
-${complaint}
-
-Plaintiff: ${plaintiff}
+Plaintiff (complainant): ${plaintiff}
 Defendant: ${defendant}
 
-Evidence, witness statements and jury votes:
-${evidence || "Oral arguments only"}
+Complaint: ${complaint_text}
+Defense: ${defense_text || "No defense statement was given."}
 
-Jury guilty percentage (context only, not an override): ${juryGuiltyPercent ?? 50}
+Plaintiff's evidence:
+${list(plaintiff_evidence)}
 
-Weigh both sides fairly and mention at least one specific detail from the case in your reasoning.`
+Defendant's evidence:
+${list(defendant_evidence)}
+
+Witness statements:
+${list(witnesses)}
+
+Give your independent vote.`
 
     const obj = await askJSON(
-      JUDGE_SYSTEM,
+      jurorSystem(juror_id),
       user,
-      (o) =>
-        /^(NOT )?GUILTY$/i.test(String(o?.verdict).trim()) &&
-        looksValid(o.reasoning) &&
-        looksValid(o.punishment) &&
-        looksValid(o.fictional_law),
+      (o) => /^(NOT )?GUILTY$/i.test(String(o?.vote).trim()) && looksValid(o?.reasoning),
     )
 
-    if (!obj) return json({ error: "Judge could not produce a valid verdict. Please retry." }, 502)
+    if (!obj) return json({ error: "Juror could not produce a valid vote. Please retry." }, 502)
 
-    return json({
-      verdict: String(obj.verdict).trim().toUpperCase(),
-      reasoning: obj.reasoning,
-      fictional_law: obj.fictional_law,
-      punishment: obj.punishment,
-    })
+    const guilty = !/^NOT/i.test(String(obj.vote).trim())
+    return json({ vote: guilty ? "guilty" : "not_guilty", reasoning: obj.reasoning })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : String(err) }, 500)
   }

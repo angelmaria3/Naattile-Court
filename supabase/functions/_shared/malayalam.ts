@@ -33,9 +33,12 @@ Return JSON with exactly these keys: verdict, reasoning, fictional_law, punishme
 - verdict: exactly "GUILTY" or "NOT GUILTY" in English capitals (this one field only). Everything else in Malayalam.
 - reasoning: 2-3 short, funny sentences weighing the evidence, witnesses and jury percentage (as context, not an override).
 - fictional_law: a funny made-up law with a section number written in words.
-- punishment: harmless, funny, Kerala-flavoured.
+- punishment: if the verdict is GUILTY, a harmless, funny, Kerala-flavoured punishment. If the verdict is NOT GUILTY, do NOT punish the defendant. Instead announce that the defendant is released (വിട്ടയക്കുന്നു) and give a funny Kerala-style reward or compensation for being wrongly accused (for example chaya and pazhampori, or a "most innocent citizen" certificate), paid by the complainant or granted by the court.
 Example of the right quality:
 {"verdict":"GUILTY","reasoning":"പേന ആരുടേതാണെന്ന് രണ്ടുപേർക്കും ഉറപ്പില്ല, പക്ഷേ ചായക്കടയിലെ സാക്ഷി പറഞ്ഞത് വിശ്വസിക്കാം. ഇനി മുതൽ കടം വാങ്ങിയ സാധനം തിരിച്ചു കൊടുക്കണം, അല്ലെങ്കിൽ ഞാൻ ഇടപെടും!","fictional_law":"പേനാ പരിപാലന നിയമം, വകുപ്പ് നാനൂറ്റി ഇരുപത്","punishment":"മൂന്ന് ദിവസം ആ പേനയിൽ 'ഇത് കടം വാങ്ങിയതാണ്' എന്ന് എഴുതി ഒട്ടിച്ച് നടക്കണം."}`;
+
+Example for a NOT GUILTY verdict:
+{"verdict":"NOT GUILTY","reasoning":"ആര് എടുത്തെന്ന് ആർക്കും ഉറപ്പില്ല, തെളിവുമില്ല. സംശയത്തിന്റെ ആനുകൂല്യം പ്രതിക്ക് തന്നെ!","fictional_law":"നിരപരാധി സംരക്ഷണ നിയമം, വകുപ്പ് നൂറ്റി ഒന്ന്","punishment":"പ്രതിയെ കുറ്റവിമുക്തനാക്കി വിട്ടയക്കുന്നു! അനാവശ്യ പരാതി കൊടുത്തതിന് വാദി പ്രതിക്ക് ഒരു ചായയും രണ്ട് പഴംപൊരിയും വാങ്ങിക്കൊടുക്കണം, കൂടെ 'ഏറ്റവും നിരപരാധിയായ പൗരൻ' എന്ന സർട്ടിഫിക്കറ്റും."}
 
 export function witnessSystem(name: string) {
   return `${RULES}

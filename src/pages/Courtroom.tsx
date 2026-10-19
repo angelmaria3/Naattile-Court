@@ -600,7 +600,9 @@ export default function Courtroom() {
                 <p className="text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5] leading-snug">{verdict.fictional_law}</p>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#ffd778]">🔨 ശിക്ഷ (Punishment)</span>
+                <span className="text-[10px] uppercase font-bold text-[#ffd778]">
+  {outcomeIsGuilty ? '🔨 ശിക്ഷ (Punishment)' : '🎁 വിടുതലും സമ്മാനവും (Released & Rewarded)'}
+</span>
                 <p className="text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5] leading-snug">{verdict.punishment}</p>
               </div>
             </div>
@@ -904,7 +906,7 @@ export default function Courtroom() {
                   </div>
                   <div className="pl-4">
                     <span className="text-[10px] uppercase font-bold text-[#7a2020]/60 flex items-center gap-1 mb-1">
-                      <Gavel className="w-3 h-3" /> Punishment
+                      <Gavel className="w-3 h-3" /> {outcomeIsGuilty ? 'Punishment' : 'Released & Rewarded'}
                     </span>
                     <p className="text-xs text-[#241206] font-malayalam font-semibold leading-snug">
                       {verdict.punishment}
