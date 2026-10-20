@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 
 export type AvatarSpec = {
   bg: string
@@ -11,19 +11,22 @@ export type AvatarSpec = {
   moustache?: boolean
   beard?: boolean
   headphones?: boolean
+  photo?: string // realistic portrait in /public/avatars; the SVG below is the fallback
 }
 
+const photo = (file: string) => `/avatars/${file}.png`
+
 export const AVATARS: Record<string, AvatarSpec> = {
-  Judge: { bg: '#e0b95c', skin: '#c98f64', hair: '#ececec', shirt: '#2b2b2b', style: 'bun', glasses: true, bindi: true },
-  Ammachi: { bg: '#f4d9a8', skin: '#c98f64', hair: '#ececec', shirt: '#f7f1e3', style: 'bun', glasses: true, bindi: true },
-  'Auto Chettan': { bg: '#f2c94c', skin: '#a8693f', hair: '#1e1511', shirt: '#6b7a4a', style: 'short', moustache: true },
-  'Canteen Chettan': { bg: '#e9a07a', skin: '#b97b52', hair: '#1e1511', shirt: '#f4f1ea', style: 'bald', moustache: true },
-  'College Friend': { bg: '#9ec9e8', skin: '#d9a077', hair: '#2a1b12', shirt: '#d9534f', style: 'short', headphones: true },
-  Anjali: { bg: '#f3b6c8', skin: '#c88d66', hair: '#1b1210', shirt: '#2f7d6d', style: 'long', bindi: true, glasses: true },
-  Rohit: { bg: '#b8c4f0', skin: '#b97b52', hair: '#18110d', shirt: '#34495e', style: 'short', glasses: true },
-  Meera: { bg: '#f6d58e', skin: '#d9a077', hair: '#241610', shirt: '#c0568a', style: 'bun', bindi: true },
-  Vishnu: { bg: '#bfe3b4', skin: '#9c6540', hair: '#1b1210', shirt: '#e0b341', style: 'curly', moustache: true },
-  Kiran: { bg: '#c9b6ec', skin: '#c48a60', hair: '#3a2a1c', shirt: '#222222', style: 'cap', beard: true },
+  Judge: { bg: '#e0b95c', skin: '#c98f64', hair: '#ececec', shirt: '#2b2b2b', style: 'bun', glasses: true, bindi: true, photo: photo('judge') },
+  Ammachi: { bg: '#f4d9a8', skin: '#c98f64', hair: '#ececec', shirt: '#f7f1e3', style: 'bun', glasses: true, bindi: true, photo: photo('ammachi') },
+  'Auto Chettan': { bg: '#f2c94c', skin: '#a8693f', hair: '#1e1511', shirt: '#6b7a4a', style: 'short', moustache: true, photo: photo('auto-chettan') },
+  'Canteen Chettan': { bg: '#e9a07a', skin: '#b97b52', hair: '#1e1511', shirt: '#f4f1ea', style: 'bald', moustache: true, photo: photo('canteen-chettan') },
+  'College Friend': { bg: '#9ec9e8', skin: '#d9a077', hair: '#2a1b12', shirt: '#d9534f', style: 'short', headphones: true, photo: photo('college-friend') },
+  Anjali: { bg: '#f3b6c8', skin: '#c88d66', hair: '#1b1210', shirt: '#2f7d6d', style: 'long', bindi: true, glasses: true, photo: photo('anjali') },
+  Rohit: { bg: '#b8c4f0', skin: '#b97b52', hair: '#18110d', shirt: '#34495e', style: 'short', glasses: true, photo: photo('rohit') },
+  Meera: { bg: '#f6d58e', skin: '#d9a077', hair: '#241610', shirt: '#c0568a', style: 'bun', bindi: true, photo: photo('meera') },
+  Vishnu: { bg: '#bfe3b4', skin: '#9c6540', hair: '#1b1210', shirt: '#e0b341', style: 'curly', moustache: true, photo: photo('vishnu') },
+  Kiran: { bg: '#c9b6ec', skin: '#c48a60', hair: '#3a2a1c', shirt: '#222222', style: 'cap', beard: true, photo: photo('kiran') },
 }
 
 const SKINS = ['#d9a077', '#c98f64', '#b97b52', '#a8693f', '#8d5a3a']
@@ -51,6 +54,8 @@ export function avatarFromName(name: string, role: 'plaintiff' | 'defendant'): A
     glasses: (h >>> 12) % 4 === 0,
     moustache: style !== 'long' && style !== 'bun' && (h >>> 14) % 3 === 0,
     bindi: (style === 'long' || style === 'bun') && (h >>> 16) % 2 === 0,
+    // complainants use party-1..4, defendants party-5..8 (same name always gets the same face)
+    photo: photo(`party-${(role === 'plaintiff' ? 1 : 5) + (h % 4)}`),
   }
 }
 
@@ -73,9 +78,34 @@ export default function Avatar({
 }) {
   const uid = useId().replace(/:/g, '')
   const clip = `av-${uid}`
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const { bg, skin, hair, shirt, style } = spec
   const ink = '#2b1a10'
   const front = 'M20 29 C19 14 45 14 44 29 C41 23 37 21 32 21 C27 21 23 23 20 29 Z'
+
+  // Realistic portrait if the file exists; otherwise fall through to the SVG below
+  if (spec.photo && spec.photo !== failedSrc) {
+    return (
+      <img
+        src={spec.photo}
+        alt={label ?? 'avatar'}
+        width={size}
+        height={size}
+        loading="lazy"
+        onError={() => setFailedSrc(spec.photo!)}
+        className="avatar-photo"
+        style={{
+          width: size,
+          height: size,
+          flexShrink: 0,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          background: bg,
+          boxShadow: `0 0 0 2px ${ring ?? 'rgba(224,185,92,0.75)'}, 0 4px 10px rgba(0,0,0,0.45)`,
+        }}
+      />
+    )
+  }
 
   return (
     <svg

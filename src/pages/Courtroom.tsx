@@ -128,10 +128,11 @@ export default function Courtroom() {
     setShowVerdictSplash(true)
     splashTimeoutRef.current = setTimeout(() => setShowVerdictSplash(false), 10000)
   }
+
   const closeVerdictSplash = () => {
-  if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
-  setShowVerdictSplash(false)
-}
+    if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
+    setShowVerdictSplash(false)
+  }
 
   useEffect(() => {
     return () => {
@@ -327,8 +328,6 @@ export default function Courtroom() {
   const handleSummon = async (
     persona: { name: string; role: string; tagline: string },
     side: 'plaintiff' | 'defendant'
-    
-    
   ) => {
     setSummoning(persona.name)
     try {
@@ -343,11 +342,11 @@ export default function Courtroom() {
           witness_name: persona.name,
           witness_personality: `${persona.role}. ${persona.tagline}`,
           side,
-          plaintiff: caseData.plaintiff,            // ← add
-  defendant: caseData.defendant || '',      // ← add
-  complaint_text: caseData.complaint,
-  defense_text: currentDefenseStatement,
-  evidence: evidenceNotes
+          plaintiff: caseData.plaintiff,
+          defendant: caseData.defendant || '',
+          complaint_text: caseData.complaint,
+          defense_text: defenseText,
+          evidence: evidenceNotes
         })
       })
 
@@ -383,7 +382,7 @@ export default function Courtroom() {
           plaintiff: caseData.plaintiff,
           defendant: caseData.defendant || 'Unknown',
           complaint_text: caseData.complaint,
-          defense_text: currentDefenseStatement,
+          defense_text: defenseText,
           plaintiff_evidence: plaintiffEvidence.map(e => e.description || 'Photo/Document evidence'),
           defendant_evidence: defendantEvidence.map(e => e.description || 'Photo/Document counter-evidence'),
           witnesses: witnessList.map(w => `${w.witness_name}: ${w.statement}`)
@@ -392,7 +391,7 @@ export default function Courtroom() {
 
       const body = await res.json().catch(() => ({}))
       if (!res.ok || !body.vote || !body.reasoning) {
-        throw new Error(body.error || 'Juror could not be reached')
+        throw new Error(body.error || body.message || `Juror request failed (HTTP ${res.status})`)
       }
 
       const { error } = await supabase.from('jury_votes').insert({
@@ -416,18 +415,24 @@ export default function Courtroom() {
     }
   }
 
+  // Start jurors 0.8s apart so the AI provider isn't hit by five calls at the same instant
   const conveneJury = () => {
-    JURORS.forEach(j => {
-      if (juryRows[j.id] || juryLocal[j.id]?.status === 'loading') return
-      askJuror(j.id)
+    const pending = JURORS.filter(j => !juryRows[j.id] && juryLocal[j.id]?.status !== 'loading')
+    setJuryLocal(p => {
+      const next = { ...p }
+      pending.forEach(j => {
+        next[j.id] = { status: 'loading' }
+      })
+      return next
     })
+    pending.forEach((j, i) => setTimeout(() => askJuror(j.id), i * 800))
   }
 
   const getVerdict = async () => {
     setVerdictLoading(true)
     setVerdictError('')
 
-    const defendantStatement = currentDefenseStatement || 'No formal defense statement submitted.'
+    const defendantStatement = defenseText || 'No formal defense statement submitted.'
 
     const doneJurors = jurorViews.filter(j => j.status === 'done')
     const guiltyCount = doneJurors.filter(j => j.vote === 'guilty').length
@@ -482,6 +487,11 @@ export default function Courtroom() {
     || localStorage.getItem(`case_${caseId}_defendant_statement`)
     || ''
 
+  // The defense counts if the defendant wrote a statement OR added any counter-evidence
+  const defenseText = currentDefenseStatement
+    || defendantEvidence.map(e => e.description).filter(Boolean).join('; ')
+  const hasDefense = Boolean(defenseText) || defendantEvidence.length > 0
+
   const complainantWitnesses = witnessList.filter(w => w.witness_name?.includes('വാദി'))
   const defendantWitnesses = witnessList.filter(w => w.witness_name?.includes('പ്രതി'))
 
@@ -500,6 +510,7 @@ export default function Courtroom() {
     return (
       <div className="courtroom-viewport flex items-center justify-center p-4">
         <div className="courtroom-box-center max-w-md text-center py-8">
+          <div className="court-spotlight" />
           <Seal size={54} className="mb-3 mx-auto" />
           <h2 className="text-2xl font-bold text-red-300 mb-2">Notice of Dismissal</h2>
           <p className="text-white/90 font-body text-sm mb-6">❌ Case docket #{caseId} not found in court records.</p>
@@ -537,8 +548,8 @@ export default function Courtroom() {
 
   const finalButtonLabel = verdictLoading
     ? 'Judge is deliberating...'
-    : !currentDefenseStatement
-    ? "Waiting for defendant's statement"
+    : !hasDefense
+    ? "Waiting for the defendant's side"
     : !allJurorsDone
     ? `Waiting for jury (${juryDoneCount}/${JURORS.length})`
     : verdictError
@@ -552,7 +563,6 @@ export default function Courtroom() {
           id="center-verdict-splash"
           onClick={closeVerdictSplash}
           style={{ zIndex: 99999 }}
-          // onClick={() => setShowVerdictSplash(false)}
           className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-md cursor-pointer overflow-hidden transition-all duration-300"
         >
           {Array.from({ length: 28 }).map((_, i) => (
@@ -605,8 +615,8 @@ export default function Courtroom() {
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-[#ffd778]">
-  {outcomeIsGuilty ? '🔨 ശിക്ഷ (Punishment)' : '🎁 വിടുതലും സമ്മാനവും (Released & Rewarded)'}
-</span>
+                  {outcomeIsGuilty ? '🔨 ശിക്ഷ (Punishment)' : '🎁 വിടുതലും സമ്മാനവും (Released & Rewarded)'}
+                </span>
                 <p className="text-xs sm:text-sm font-malayalam font-bold text-[#fffdf5] leading-snug">{verdict.punishment}</p>
               </div>
             </div>
@@ -822,8 +832,18 @@ export default function Courtroom() {
           <div className="rivet-bl" />
           <div className="rivet-br" />
 
-          <div className="flex-shrink-0 text-center pb-2 border-b-2 border-[#e0b95c] flex items-center justify-center gap-3">
-            <Seal size={38} className="drop-shadow-sm" />
+          <div className="flex-shrink-0 judge-bench">
+  <div className="judge-portrait">
+    <Avatar spec={specFor('Judge')} size={64} label="Hon. Ammachi Judge" ring="#ffd778" />
+    <span className={`judge-gavel ${verdictLoading ? 'gavel-tap' : ''}`}>🔨</span>
+  </div>
+  <div className="judge-nameplate">
+    <h1 className="text-sm sm:text-base font-black font-display tracking-wider leading-tight">
+      ബഹുമാനപ്പെട്ട കോടതി / THE COURT
+    </h1>
+    <p className="text-[10px] uppercase tracking-widest font-extrabold">HON. AMMACHI JUDGE</p>
+  </div>
+</div>
             <div className="bg-[#fffdf5] px-4 py-1 rounded shadow-md border border-[#dfcca0] text-[#7a2020]">
               <h1 className="text-sm sm:text-base font-black font-display tracking-wider leading-tight">
                 ബഹുമാനപ്പെട്ട കോടതി / THE COURT
@@ -928,8 +948,8 @@ export default function Courtroom() {
           <div className="flex-shrink-0 bg-[#3a2213] p-2.5 rounded border-2 border-[#e0b95c]/60 space-y-1.5">
             <JuryPanel
               jurors={jurorViews}
-              canConvene={Boolean(currentDefenseStatement)}
-              conveneHint="Waiting for defendant's statement"
+              canConvene={hasDefense}
+              conveneHint="Waiting for the defendant's side"
               onConvene={conveneJury}
               onRetry={askJuror}
             />
@@ -941,7 +961,7 @@ export default function Courtroom() {
             <button
               id="final-verdict-btn"
               onClick={handleFinalVerdictClick}
-              disabled={verdictLoading || !allJurorsDone || !currentDefenseStatement}
+              disabled={verdictLoading || !allJurorsDone || !hasDefense}
               className="w-full mt-1 py-2 rounded font-display font-black text-sm uppercase tracking-wider bg-gradient-to-b from-[#ffd778] via-[#e4b248] to-[#be8624] text-[#1c0e04] border-2 border-white/60 hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md"
             >
               <Gavel className="w-4 h-4" />

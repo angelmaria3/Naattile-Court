@@ -57,6 +57,26 @@ export default function JuryPanel({ jurors, canConvene, conveneHint, onConvene, 
         )}
       </div>
 
+      <div className="jury-box">
+  {jurors.map((j) => {
+    const ringColor = j.status === 'done' ? (j.vote === 'guilty' ? '#ef4444' : '#22c55e') : undefined
+    return (
+      <div key={j.id} className={`jury-seat ${j.status === 'loading' ? 'jury-thinking' : ''}`}>
+        {j.status === 'done' && (
+          <span className={`jury-chip ${j.vote === 'guilty' ? 'chip-guilty' : 'chip-ng'}`}>
+            {j.vote === 'guilty' ? 'G' : 'NG'}
+          </span>
+        )}
+        {j.status === 'loading' && <span className="jury-chip chip-think">…</span>}
+        <div className={j.status === 'idle' ? 'opacity-60 grayscale' : ''}>
+          <Avatar spec={specFor(j.name)} size={46} label={j.name} ring={ringColor} />
+        </div>
+        <span className="jury-name">{j.name}</span>
+      </div>
+    )
+  })}
+</div>
+
       {anyLoading && (
         <p className="text-[10px] text-[#ffdf79] italic animate-pulse">
           Jurors are reading the case file and deliberating…
