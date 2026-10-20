@@ -327,6 +327,8 @@ export default function Courtroom() {
   const handleSummon = async (
     persona: { name: string; role: string; tagline: string },
     side: 'plaintiff' | 'defendant'
+    
+    
   ) => {
     setSummoning(persona.name)
     try {
@@ -341,9 +343,11 @@ export default function Courtroom() {
           witness_name: persona.name,
           witness_personality: `${persona.role}. ${persona.tagline}`,
           side,
-          complaint_text: caseData.complaint,
-          defense_text: currentDefenseStatement,
-          evidence: evidenceNotes
+          plaintiff: caseData.plaintiff,            // ← add
+  defendant: caseData.defendant || '',      // ← add
+  complaint_text: caseData.complaint,
+  defense_text: currentDefenseStatement,
+  evidence: evidenceNotes
         })
       })
 

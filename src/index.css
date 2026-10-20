@@ -18,6 +18,8 @@ body, button, input, textarea {
   line-height: 1.75;   /* Malayalam conjuncts need extra height or they clip */
 }
 
+.font-malayalam { line-height: 1.7; }
+
 ::-webkit-scrollbar {
   width: 8px;
 }

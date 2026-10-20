@@ -62,6 +62,7 @@
 .courtroom-box-center {
   width: 44% !important;
   flex: 1 1 44% !important;
+  overflow-y: auto;
   height: 100%;
   min-height: 0;
   display: flex;

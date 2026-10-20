@@ -1,6 +1,6 @@
 export const CLAUDE_MODEL = "claude-sonnet-5-5";
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") ?? "openai/gpt-oss-120b";
-
+import { callGemini, geminiAvailable } from "./gemini.ts";
 const RULES = `
 You write in natural, grammatically correct spoken Kerala Malayalam (Malayalam script only).
 - Sound like a real Malayali talking: colloquial, warm, witty. NOT translated English, NOT formal textbook Malayalam.
@@ -35,10 +35,10 @@ Return JSON with exactly these keys: verdict, reasoning, fictional_law, punishme
 - fictional_law: a funny made-up law with a section number written in words.
 - punishment: if the verdict is GUILTY, a harmless, funny, Kerala-flavoured punishment. If the verdict is NOT GUILTY, do NOT punish the defendant. Instead announce that the defendant is released (വിട്ടയക്കുന്നു) and give a funny Kerala-style reward or compensation for being wrongly accused (for example chaya and pazhampori, or a "most innocent citizen" certificate), paid by the complainant or granted by the court.
 Example of the right quality:
-{"verdict":"GUILTY","reasoning":"പേന ആരുടേതാണെന്ന് രണ്ടുപേർക്കും ഉറപ്പില്ല, പക്ഷേ ചായക്കടയിലെ സാക്ഷി പറഞ്ഞത് വിശ്വസിക്കാം. ഇനി മുതൽ കടം വാങ്ങിയ സാധനം തിരിച്ചു കൊടുക്കണം, അല്ലെങ്കിൽ ഞാൻ ഇടപെടും!","fictional_law":"പേനാ പരിപാലന നിയമം, വകുപ്പ് നാനൂറ്റി ഇരുപത്","punishment":"മൂന്ന് ദിവസം ആ പേനയിൽ 'ഇത് കടം വാങ്ങിയതാണ്' എന്ന് എഴുതി ഒട്ടിച്ച് നടക്കണം."}`;
+{"verdict":"GUILTY","reasoning":"പേന ആരുടേതാണെന്ന് രണ്ടുപേർക്കും ഉറപ്പില്ല, പക്ഷേ ചായക്കടയിലെ സാക്ഷി പറഞ്ഞത് വിശ്വസിക്കാം. ഇനി മുതൽ കടം വാങ്ങിയ സാധനം തിരിച്ചു കൊടുക്കണം, അല്ലെങ്കിൽ ഞാൻ ഇടപെടും!","fictional_law":"പേനാ പരിപാലന നിയമം, വകുപ്പ് നാനൂറ്റി ഇരുപത്","punishment":"മൂന്ന് ദിവസം ആ പേനയിൽ 'ഇത് കടം വാങ്ങിയതാണ്' എന്ന് എഴുതി ഒട്ടിച്ച് നടക്കണം."}
 
 Example for a NOT GUILTY verdict:
-{"verdict":"NOT GUILTY","reasoning":"ആര് എടുത്തെന്ന് ആർക്കും ഉറപ്പില്ല, തെളിവുമില്ല. സംശയത്തിന്റെ ആനുകൂല്യം പ്രതിക്ക് തന്നെ!","fictional_law":"നിരപരാധി സംരക്ഷണ നിയമം, വകുപ്പ് നൂറ്റി ഒന്ന്","punishment":"പ്രതിയെ കുറ്റവിമുക്തനാക്കി വിട്ടയക്കുന്നു! അനാവശ്യ പരാതി കൊടുത്തതിന് വാദി പ്രതിക്ക് ഒരു ചായയും രണ്ട് പഴംപൊരിയും വാങ്ങിക്കൊടുക്കണം, കൂടെ 'ഏറ്റവും നിരപരാധിയായ പൗരൻ' എന്ന സർട്ടിഫിക്കറ്റും."}
+{"verdict":"NOT GUILTY","reasoning":"ആര് എടുത്തെന്ന് ആർക്കും ഉറപ്പില്ല, തെളിവുമില്ല. സംശയത്തിന്റെ ആനുകൂല്യം പ്രതിക്ക് തന്നെ!","fictional_law":"നിരപരാധി സംരക്ഷണ നിയമം, വകുപ്പ് നൂറ്റി ഒന്ന്","punishment":"പ്രതിയെ കുറ്റവിമുക്തനാക്കി വിട്ടയക്കുന്നു! അനാവശ്യ പരാതി കൊടുത്തതിന് വാദി പ്രതിക്ക് ഒരു ചായയും രണ്ട് പഴംപൊരിയും വാങ്ങിക്കൊടുക്കണം, കൂടെ 'ഏറ്റവും നിരപരാധിയായ പൗരൻ' എന്ന സർട്ടിഫിക്കറ്റും."}`;
 
 export function witnessSystem(name: string) {
   return `${RULES}
@@ -111,10 +111,39 @@ export async function callLLM(system: string, user: string, temperature: number)
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-export async function askJSON(system: string, user: string, validate: (o: any) => boolean, tries = 3) {
-  if (!Deno.env.get("ANTHROPIC_API_KEY") && !Deno.env.get("GROQ_API_KEY")) {
-    throw new Error("No LLM key set. Set GROQ_API_KEY or ANTHROPIC_API_KEY as a Supabase secret.");
+export async function askJSON(
+  system: string,
+  user: string,
+  validate: (o: any) => boolean,
+  tries = 3,
+  provider: Provider = "default",
+) {
+  const geminiReady = provider === "gemini" && geminiAvailable();
+  if (!geminiReady && !Deno.env.get("ANTHROPIC_API_KEY") && !Deno.env.get("GROQ_API_KEY")) {
+    throw new Error("No LLM key set. Set GEMINI_API_KEY + GEMINI_MODEL, GROQ_API_KEY or ANTHROPIC_API_KEY as a Supabase secret.");
   }
+
+  let apiError: string | null = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const raw = (await callLLM(system, user, i === 0 ? 0.8 : 0.5, provider))
+        .replace(/<think>[\s\S]*?<\/think>/g, "");
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      const obj = JSON.parse(raw.slice(start, end + 1));
+      apiError = null;
+      if (validate(obj)) return obj;
+    } catch (e) {
+      const msg = String(e instanceof Error ? e.message : e);
+      if (msg.startsWith("LLM API")) {
+        apiError = msg; // real API problem (bad key, rate limit), not bad output
+        await sleep(1500 * (i + 1)); // back off before retrying
+      }
+    }
+  }
+  if (apiError) throw new Error(apiError); // surfaces in the UI instead of a silent fallback
+  return null;
+}
 
   let apiError: string | null = null;
   for (let i = 0; i < tries; i++) {
@@ -136,6 +165,72 @@ export async function askJSON(system: string, user: string, validate: (o: any) =
   }
   if (apiError) throw new Error(apiError); // surfaces in the UI instead of a silent fallback
   return null;
+}
+
+export type Provider = "default" | "gemini";
+
+// Uses Claude if ANTHROPIC_API_KEY is set, otherwise Groq (GROQ_API_KEY).
+// provider "gemini" tries Gemini first and falls through to the above on any Gemini problem.
+// Keys come from Supabase secrets, never from this file.
+export async function callLLM(
+  system: string,
+  user: string,
+  temperature: number,
+  provider: Provider = "default",
+): Promise<string> {
+  if (provider === "gemini" && geminiAvailable()) {
+    try {
+      return await callGemini(system, user, { temperature, json: true });
+    } catch (e) {
+      console.error("[gemini] falling back:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+
+  if (anthropicKey) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 800,
+        temperature,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(`LLM API ${res.status}: ${data?.error?.message ?? JSON.stringify(data)}`);
+    return data.content?.[0]?.text ?? "";
+  }
+
+  const body: Record<string, unknown> = {
+    model: GROQ_MODEL,
+    temperature,
+    max_tokens: 1500,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (GROQ_MODEL.includes("gpt-oss")) body.reasoning_effort = "low";
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("GROQ_API_KEY")}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`LLM API ${res.status}: ${data?.error?.message ?? JSON.stringify(data)}`);
+  return data.choices?.[0]?.message?.content ?? "";
 }
 
 export const FALLBACK_WITNESS: Record<string, string> = {

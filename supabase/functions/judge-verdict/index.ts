@@ -26,6 +26,8 @@ const FOREIGN_SCRIPT =
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
+import { callGemini, geminiAvailable } from "../_shared/gemini.ts"
+
 export function checkMalayalam(
   text: string,
   ignoreNames: string[],
@@ -189,6 +191,70 @@ async function askGroq(
   return String(data?.choices?.[0]?.message?.content ?? "")
 }
 
+/* ───────────── Optional Gemini polish (Malayalam wording only) ───────────── */
+
+const POLISH_SYSTEM = `You are a native Malayalam speaker and editor for a comic Kerala village-court app. You receive a court judgment that is already decided. Rewrite ONLY the "reasoning" and "punishment" so they read like natural, grammatically correct, spoken Kerala Malayalam, with the dry, affectionate humour of a Malayali elder.
+
+RULES
+- Do not change the verdict, who is at fault, who must do what, or the items and amounts involved. Do not add new facts. Keep every specific case detail (objects, events) from the draft.
+- Malayalam script only. No Manglish, no English words. Write people's names in Malayalam script.
+- Short, complete sentences a real person would say aloud. No bookish or Sanskritised words and no word-for-word translation from English. If unsure of a word, use a simpler one you are sure of. Never invent words.
+- Do not guess anyone's gender. Never use കുറ്റക്കാരൻ / കുറ്റക്കാരി; say "കുറ്റം ചെയ്തു" instead.
+- Humour only from the case facts and ordinary Kerala life. Be gentle: no jokes about religion, caste, gender, looks or family.
+- reasoning: 2 to 3 short sentences, about 30 to 60 words. punishment: one sentence, at most 30 words.
+- Return ONLY JSON: {"reasoning": "...", "punishment": "..."}`
+
+async function polishVerdict(
+  draft: Verdict,
+  ctx: { plaintiff: string; defendant: string; statements: string; evidence: string; guiltyPct: number },
+  names: string[],
+): Promise<{ verdict: Verdict; polished: boolean; note?: string }> {
+  if (Deno.env.get("GEMINI_POLISH_JUDGE") === "off" || !geminiAvailable()) {
+    return { verdict: draft, polished: false }
+  }
+
+  const user = `CASE
+Complainant (വാദി): ${ctx.plaintiff}
+Defendant (പ്രതി): ${ctx.defendant}
+
+Statements:
+${ctx.statements}
+
+Evidence and witness statements:
+${ctx.evidence || "Oral arguments only"}
+
+Jury: ${ctx.guiltyPct}% of the jurors voted GUILTY.
+
+DECIDED VERDICT: ${draft.verdict}
+LAW CITED (do not change): ${draft.fictional_law}
+
+DRAFT TO REWRITE
+reasoning: ${draft.reasoning}
+punishment: ${draft.punishment}
+
+Rewrite reasoning and punishment now as the JSON object.`
+
+  try {
+    const raw = await callGemini(POLISH_SYSTEM, user, { temperature: 0.6, json: true, timeoutMs: 10_000 })
+    const obj = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1))
+    // Re-run the exact same validation as Groq's output; verdict and law are forced to the originals.
+    const checked = parseVerdict(
+      JSON.stringify({
+        verdict: draft.verdict,
+        reasoning: obj.reasoning,
+        fictional_law: draft.fictional_law,
+        punishment: obj.punishment,
+      }),
+      names,
+    )
+    if (!checked.value) return { verdict: draft, polished: false, note: `Gemini rewrite rejected: ${checked.reason}` }
+    return { verdict: checked.value, polished: true }
+  } catch (e) {
+    const note = e instanceof Error ? e.message : String(e)
+    console.error("[judge-verdict] Gemini polish failed, keeping Groq text:", note)
+    return { verdict: draft, polished: false, note }
+  }
+}
 /* ───────────── Handler ───────────── */
 
 Deno.serve(async (req: Request) => {
@@ -236,7 +302,19 @@ Give your judgment now as the JSON object.`
         }]
       const raw = await askGroq(apiKey, [...messages, ...retryNote], attempt === 0 ? 0.8 : 0.5)
       const parsed = parseVerdict(raw, names)
-      if (parsed.value) return json({ ...parsed.value, source: "ai" })
+            if (parsed.value) {
+        const polish = await polishVerdict(
+          parsed.value,
+          { plaintiff, defendant, statements: String(body.complaint ?? ""), evidence, guiltyPct },
+          names,
+        )
+        return json({
+          ...polish.verdict,
+          source: "ai",
+          polished: polish.polished,
+          ...(polish.note ? { polish_note: polish.note } : {}),
+        })
+      }
       reason = parsed.reason
     }
 

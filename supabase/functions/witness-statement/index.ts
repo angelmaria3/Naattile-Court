@@ -6,7 +6,9 @@
 
 const MODEL = "openai/gpt-oss-120b"
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+import { callGemini, geminiAvailable } from "../_shared/gemini.ts"
 
+import { callGemini, geminiAvailable } from "../_shared/gemini.ts"
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -210,14 +212,50 @@ async function askGroq(
   return String(data?.choices?.[0]?.message?.content ?? "")
 }
 
+/* Gemini first (better Malayalam), Groq if Gemini is unavailable or fails. */
+async function generate(
+  userPrompt: string,
+  temperature: number,
+  groqKey: string | undefined,
+): Promise<{ text: string; provider: "gemini" | "groq"; note?: string }> {
+  let note: string | undefined
+  if (geminiAvailable()) {
+    try {
+      const text = await callGemini(SYSTEM_PROMPT, userPrompt, { temperature })
+      return { text, provider: "gemini" }
+    } catch (e) {
+      note = e instanceof Error ? e.message : String(e)
+      console.error("[witness-statement] Gemini failed, falling back to Groq:", note)
+    }
+  }
+  if (!groqKey) {
+    throw new Error(
+      note ? `Gemini failed (${note}) and GROQ_API_KEY is not set` : "GROQ_API_KEY secret is not set on this project",
+    )
+  }
+  const text = await askGroq(
+    groqKey,
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    temperature,
+  )
+  return { text, provider: "groq", note }
+}
+
 /* ───────────── Handler ───────────── */
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders })
 
   try {
-    const apiKey = Deno.env.get("GROQ_API_KEY")
-    if (!apiKey) return json({ error: "GROQ_API_KEY secret is not set on this project" }, 500)
+    const groqKey = Deno.env.get("GROQ_API_KEY")
+    if (!groqKey && !geminiAvailable()) {
+      return json({
+        error: "No LLM configured: set GEMINI_API_KEY and GEMINI_MODEL, or GROQ_API_KEY, as Supabase secrets",
+      }, 500)
+    }
 
     const body = await req.json()
     const witnessName: string = String(body.witness_name ?? "")
@@ -236,6 +274,32 @@ Deno.serve(async (req: Request) => {
       plaintiff: names[0],
       defendant: names[1],
     })
+
+    let reason: string | null = null
+    let note: string | undefined
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const prompt = attempt === 0
+        ? userPrompt
+        : `${userPrompt}\n\nYour previous answer was rejected because it was ${reason}. Write it again: natural spoken Malayalam in Malayalam script only, 12 to 35 words, no English letters.`
+      const out = await generate(prompt, attempt === 0 ? 0.8 : 0.5, groqKey)
+      note = out.note ?? note
+      const statement = cleanStatement(out.text)
+      reason = checkMalayalam(statement, names)
+      if (!reason) {
+        return json({ statement, source: "ai", provider: out.provider, ...(note ? { note } : {}) })
+      }
+    }
+
+    return json({
+      statement: templateStatement(witnessName, side),
+      source: "template",
+      reason,
+      ...(note ? { note } : {}),
+    })
+  } catch (err) {
+    return json({ error: String(err instanceof Error ? err.message : err) }, 502)
+  }
+})
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
