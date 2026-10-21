@@ -726,7 +726,7 @@ export default function Courtroom() {
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 flex flex-col mb-2 overflow-hidden">
+            <div className="flex-1 min-h-[130px] flex flex-col my-2 overflow-hidden">
             <div className="flex items-center justify-between mb-1 flex-shrink-0">
               <span className="text-[11px] uppercase font-extrabold text-[#ffdf79] flex items-center gap-1">
                 <FileText className="w-3.5 h-3.5" />
@@ -834,7 +834,7 @@ export default function Courtroom() {
 
           <div className="flex-shrink-0 judge-bench">
   <div className="judge-portrait">
-    <Avatar spec={specFor('Judge')} size={64} label="Hon. Ammachi Judge" ring="#ffd778" />
+    <Avatar spec={specFor('Judge')} size={52} label="Hon. Ammachi Judge" ring="#ffd778" />
     <span className={`judge-gavel ${verdictLoading ? 'gavel-tap' : ''}`}>🔨</span>
   </div>
   <div className="judge-nameplate">
@@ -844,15 +844,6 @@ export default function Courtroom() {
     <p className="text-[10px] uppercase tracking-widest font-extrabold">HON. AMMACHI JUDGE</p>
   </div>
 </div>
-            <div className="bg-[#fffdf5] px-4 py-1 rounded shadow-md border border-[#dfcca0] text-[#7a2020]">
-              <h1 className="text-sm sm:text-base font-black font-display tracking-wider leading-tight">
-                ബഹുമാനപ്പെട്ട കോടതി / THE COURT
-              </h1>
-              <p className="text-[10px] text-[#5c1f1f] uppercase tracking-widest font-extrabold">
-                HON. AMMACHI JUDGE 👩‍⚖️🔨
-              </p>
-            </div>
-          </div>
 
           <div className="flex-1 min-h-0 flex flex-col my-2 overflow-hidden">
             <div className="flex items-center justify-between mb-1.5 flex-shrink-0">

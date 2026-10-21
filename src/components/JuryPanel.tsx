@@ -69,7 +69,7 @@ export default function JuryPanel({ jurors, canConvene, conveneHint, onConvene, 
         )}
         {j.status === 'loading' && <span className="jury-chip chip-think">…</span>}
         <div className={j.status === 'idle' ? 'opacity-60 grayscale' : ''}>
-          <Avatar spec={specFor(j.name)} size={46} label={j.name} ring={ringColor} />
+          <Avatar spec={specFor(j.name)} size={38} label={j.name} ring={ringColor} />
         </div>
         <span className="jury-name">{j.name}</span>
       </div>
@@ -83,7 +83,7 @@ export default function JuryPanel({ jurors, canConvene, conveneHint, onConvene, 
         </p>
       )}
 
-      <div className="max-h-[34vh] overflow-y-auto pr-1 space-y-1.5 custom-scroll">
+      <div className="max-h-[14vh] overflow-y-auto pr-1 space-y-1.5 custom-scroll">
         {jurors.map((j) => {
           const tone =
             j.status === 'done'
